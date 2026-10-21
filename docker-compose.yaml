@@ -1,0 +1,9 @@
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: pokus
+      POSTGRES_DB: ai_cv_generator
+    ports:
+      - "5432:5432"
