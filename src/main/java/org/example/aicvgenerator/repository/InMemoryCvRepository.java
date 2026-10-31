@@ -5,14 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.example.aicvgenerator.exception.DuplicateEmailException;
 import org.example.aicvgenerator.repository.entity.CvEntity;
-import org.springframework.context.annotation.Profile;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
-/** Keeps rows in an {@link ArrayList}; mirrors {@link JdbcCvRepository} (ids, unique email, timestamps). */
+/** Keeps rows in an {@link ArrayList}; ids, unique email and timestamps are assigned here. */
 @Repository
-@Profile("!jdbc")
 public class InMemoryCvRepository implements CvRepository {
 
     private final List<CvEntity> rows = new ArrayList<>();
@@ -56,7 +54,7 @@ public class InMemoryCvRepository implements CvRepository {
     private void requireEmailFree(String email, Long ownId) {
         boolean taken = rows.stream().anyMatch(row -> row.getEmail().equals(email) && !row.getId().equals(ownId));
         if (taken) {
-            throw new DuplicateKeyException("CV with email " + email + " already exists");
+            throw new DuplicateEmailException(email);
         }
     }
 

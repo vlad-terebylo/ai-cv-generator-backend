@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-/** Default mode: no database, in-memory repositories. */
+/** In-memory repositories, no database. */
 @SpringBootTest
 class AiCvGeneratorApplicationTests {
 

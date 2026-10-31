@@ -5,12 +5,10 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.example.aicvgenerator.repository.entity.ExperienceEntity;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
-/** Keeps rows in an {@link ArrayList}; mirrors {@link JdbcExperienceRepository}. */
+/** Keeps rows in an {@link ArrayList}. */
 @Repository
-@Profile("!jdbc")
 public class InMemoryExperienceRepository implements ExperienceRepository {
 
     private static final Comparator<ExperienceEntity> NEWEST_FIRST = Comparator

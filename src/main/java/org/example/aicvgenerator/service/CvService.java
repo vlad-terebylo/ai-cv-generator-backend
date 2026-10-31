@@ -16,7 +16,6 @@ import org.example.aicvgenerator.service.model.Cv;
 import org.example.aicvgenerator.service.model.CvDocument;
 import org.example.aicvgenerator.service.model.CvSaveResult;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ public class CvService {
     private final CvExtractionMapper extractionMapper;
 
     /** Parses the document and stores it; an existing CV with the same email is replaced. */
-    @Transactional
     public CvSaveResult process(CvDocument document) {
         String text = textExtractor.extract(document);
         CvExtraction extraction = geminiClient.extract(text);
@@ -50,7 +48,6 @@ public class CvService {
         return save(cv);
     }
 
-    @Transactional(readOnly = true)
     public Cv getById(long id) {
         CvEntity entity = cvRepository.findById(id).orElseThrow(() -> new CvNotFoundException(id));
         return entityMapper.toDomain(entity, experienceRepository.findByCvId(id));

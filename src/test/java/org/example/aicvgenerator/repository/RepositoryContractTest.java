@@ -5,12 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
+import org.example.aicvgenerator.exception.DuplicateEmailException;
 import org.example.aicvgenerator.repository.entity.CvEntity;
 import org.example.aicvgenerator.repository.entity.ExperienceEntity;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DuplicateKeyException;
+import org.example.aicvgenerator.exception.DuplicateEmailException;
 
-/** Behaviour every repository implementation (JDBC and in-memory) must share. */
+/** Behaviour every repository implementation (currently in-memory) must share. */
 abstract class RepositoryContractTest {
 
     abstract CvRepository cvRepository();
@@ -60,7 +61,7 @@ abstract class RepositoryContractTest {
     void emailMustBeUnique() {
         cvRepository().insert(cv("d@x.com"));
 
-        assertThatThrownBy(() -> cvRepository().insert(cv("d@x.com"))).isInstanceOf(DuplicateKeyException.class);
+        assertThatThrownBy(() -> cvRepository().insert(cv("d@x.com"))).isInstanceOf(DuplicateEmailException.class);
     }
 
     @Test
