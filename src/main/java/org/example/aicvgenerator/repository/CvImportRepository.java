@@ -14,4 +14,7 @@ public interface CvImportRepository {
 
     /** Replaces the mutable fields of the row with the same id; an unknown id is ignored. */
     void update(CvImportEntity entity);
+
+    /** Removes the row; an unknown id is ignored. */
+    void delete(UUID id);
 }

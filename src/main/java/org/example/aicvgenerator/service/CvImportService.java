@@ -18,8 +18,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class CvImportService {
 
-    static final String SERVER_BUSY = "SERVER_BUSY";
-
     private final DocumentTextExtractor textExtractor;
     private final CvImportRepository cvImportRepository;
     private final CvImportEntityMapper mapper;
@@ -49,7 +47,8 @@ public class CvImportService {
         try {
             executor.execute(() -> processor.run(id, document));
         } catch (TaskRejectedException e) {
-            processor.markFailed(id, SERVER_BUSY, new ServerBusyException().getMessage());
+            // never accepted, and the client gets no job id with the 503, so leave no unreachable record behind
+            cvImportRepository.delete(id);
             throw new ServerBusyException();
         }
         return created;

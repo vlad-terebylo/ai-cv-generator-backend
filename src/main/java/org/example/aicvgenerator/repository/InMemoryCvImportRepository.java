@@ -41,6 +41,11 @@ public class InMemoryCvImportRepository implements CvImportRepository {
         });
     }
 
+    @Override
+    public synchronized void delete(UUID id) {
+        rows.removeIf(row -> row.getId().equals(id));
+    }
+
     private CvImportEntity copy(CvImportEntity entity) {
         return entity.toBuilder().build();
     }

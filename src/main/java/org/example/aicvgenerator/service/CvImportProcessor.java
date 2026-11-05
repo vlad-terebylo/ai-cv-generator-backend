@@ -57,7 +57,7 @@ public class CvImportProcessor {
     }
 
     /** Records a failure on the job; logs instead of throwing if even that is impossible. */
-    public void markFailed(UUID jobId, String errorCode, String errorMessage) {
+    private void markFailed(UUID jobId, String errorCode, String errorMessage) {
         try {
             update(jobId, job -> {
                 job.setStatus(CvImportStatus.FAILED);

@@ -3,9 +3,9 @@ package org.example.aicvgenerator.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -17,6 +17,7 @@ import org.example.aicvgenerator.exception.UnreadableDocumentException;
 import org.example.aicvgenerator.exception.UnsupportedDocumentException;
 import org.example.aicvgenerator.mapper.CvImportEntityMapper;
 import org.example.aicvgenerator.repository.InMemoryCvImportRepository;
+import org.example.aicvgenerator.repository.entity.CvImportEntity;
 import org.example.aicvgenerator.service.model.CvDocument;
 import org.example.aicvgenerator.service.model.CvImport;
 import org.example.aicvgenerator.service.model.CvImportStatus;
@@ -36,7 +37,7 @@ class CvImportServiceTest {
     @Mock TaskExecutor executor;
     @Mock CvImportProcessor processor;
 
-    final InMemoryCvImportRepository repository = new InMemoryCvImportRepository();
+    final InMemoryCvImportRepository repository = spy(new InMemoryCvImportRepository());
     final CvDocument document = new CvDocument("cv.pdf", new byte[] {1});
     CvImportService service;
 
@@ -82,14 +83,18 @@ class CvImportServiceTest {
     }
 
     @Test
-    void marksJobFailedAndThrowsWhenTheQueueIsFull() {
+    void deletesTheJobAndThrowsWhenTheQueueIsFull() {
         doThrow(new TaskRejectedException("queue full")).when(executor).execute(any());
 
         assertThatThrownBy(() -> service.submit(document)).isInstanceOf(ServerBusyException.class);
 
-        ArgumentCaptor<UUID> id = ArgumentCaptor.forClass(UUID.class);
-        verify(processor).markFailed(id.capture(), eq("SERVER_BUSY"), any());
-        assertThat(service.getById(id.getValue()).getFileName()).isEqualTo("cv.pdf");
+        // the client never gets this job's id with the 503, so no unreachable record may remain
+        ArgumentCaptor<CvImportEntity> inserted = ArgumentCaptor.forClass(CvImportEntity.class);
+        verify(repository).insert(inserted.capture());
+        UUID id = inserted.getValue().getId();
+        verify(repository).delete(id);
+        assertThat(repository.findById(id)).isEmpty();
+        verifyNoInteractions(processor);
     }
 
     @Test

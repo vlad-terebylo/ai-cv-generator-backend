@@ -12,7 +12,7 @@ public record CvImportResponse(
         String fileName,
         @Schema(description = "Id of the stored CV once the import is COMPLETED; fetch it with GET /api/v1/cvs/{id}")
         Long cvId,
-        @Schema(description = "Set when FAILED: NOT_A_CV, UNREADABLE_DOCUMENT, AI_SERVICE_ERROR, INTERNAL_ERROR or SERVER_BUSY")
+        @Schema(description = "Set when FAILED: NOT_A_CV, UNREADABLE_DOCUMENT, AI_SERVICE_ERROR or INTERNAL_ERROR")
         String errorCode,
         String errorMessage,
         Instant createdAt,

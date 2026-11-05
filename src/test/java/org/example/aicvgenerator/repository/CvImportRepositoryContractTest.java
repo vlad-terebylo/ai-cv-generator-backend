@@ -78,6 +78,29 @@ abstract class CvImportRepositoryContractTest {
     }
 
     @Test
+    void deleteRemovesOnlyThatJob() {
+        CvImportEntity doomed = job();
+        CvImportEntity kept = job();
+        cvImportRepository().insert(doomed);
+        cvImportRepository().insert(kept);
+
+        cvImportRepository().delete(doomed.getId());
+
+        assertThat(cvImportRepository().findById(doomed.getId())).isEmpty();
+        assertThat(cvImportRepository().findById(kept.getId())).isPresent();
+    }
+
+    @Test
+    void deleteOfUnknownIdIsIgnored() {
+        CvImportEntity kept = job();
+        cvImportRepository().insert(kept);
+
+        cvImportRepository().delete(UUID.randomUUID());
+
+        assertThat(cvImportRepository().findById(kept.getId())).isPresent();
+    }
+
+    @Test
     void updatingOneJobLeavesOthersUntouched() {
         CvImportEntity first = job();
         CvImportEntity second = job();
