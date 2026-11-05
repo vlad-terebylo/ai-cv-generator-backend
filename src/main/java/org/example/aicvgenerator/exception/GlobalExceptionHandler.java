@@ -26,18 +26,13 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "The file exceeds the " + maxFileSize + " limit");
     }
 
-    @ExceptionHandler(NotACvException.class)
-    public ProblemDetail handleNotACv(NotACvException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
-    }
-
-    @ExceptionHandler(CvNotFoundException.class)
-    public ProblemDetail handleNotFound(CvNotFoundException e) {
+    @ExceptionHandler({CvNotFoundException.class, CvImportNotFoundException.class})
+    public ProblemDetail handleNotFound(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    @ExceptionHandler(AiServiceException.class)
-    public ProblemDetail handleAiFailure(AiServiceException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, e.getMessage());
+    @ExceptionHandler(ServerBusyException.class)
+    public ProblemDetail handleServerBusy(ServerBusyException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
     }
 }
