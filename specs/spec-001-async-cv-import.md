@@ -1,6 +1,6 @@
 # spec-001: Asynchronous CV import
 
-Status: draft, not implemented
+Status: implemented (phases 1 to 6), committed locally on `feature/cv-import`, not pushed
 Branch: `feature/cv-import`
 Revision: rewritten 2026-10-31 for the in-memory-only repository (commits `f76c5bf` "Created in memory repository realization" and `6c51020` "Deleted all JDBC and database mentions").
 Binding rules: `ARCHITECTURE.md` (layer-first packages under `org.example.aicvgenerator`, in-memory storage only behind repository interfaces, MapStruct at each layer boundary). Do not add a database, JDBC, JPA, Flyway or migrations: section 7 of `ARCHITECTURE.md` forbids it without an amendment.

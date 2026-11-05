@@ -4,7 +4,7 @@ Binding architecture rules for this project. All new code MUST comply. If a task
 
 ## 1. Style
 
-Layered architecture: **controller → service → repository**. REST JSON API under `/api/v1`. Persistence is in-memory `ArrayList` storage behind repository interfaces; no database is used. Services are concrete classes (no interface/`Impl` pair unless a second implementation actually exists; repositories are the exception).
+Layered architecture: **controller → service → repository**. REST JSON API under `/api/v1`. Persistence is in-memory `ArrayList` storage behind repository interfaces; no database is used. Slow work (the Gemini call) runs asynchronously on a bounded worker pool, never on a request thread (see section 7). Services are concrete classes (no interface/`Impl` pair unless a second implementation actually exists; repositories are the exception).
 
 ## 2. Packages (layer-first)
 
@@ -16,10 +16,10 @@ Base package: `org.example.aicvgenerator`
 | `controller.dto` | Request/response DTOs (`*Request`, `*Response`) |
 | `service` | `@Service` classes |
 | `service.model` | Domain models |
-| `repository` | Repository interfaces (`CvRepository`) and `InMemory*Repository` (`ArrayList`) implementations |
+| `repository` | Repository interfaces (`CvRepository`, `ExperienceRepository`, `CvImportRepository`) and `InMemory*Repository` (`ArrayList`) implementations |
 | `repository.entity` | Entities (rows as persisted, `*Entity`) |
 | `mapper` | MapStruct mappers |
-| `config` | `@Configuration` classes and `@ConfigurationProperties` |
+| `config` | `@Configuration` classes, `@ConfigurationProperties`, and the `cvImportExecutor` thread pool (`AsyncConfig`, `CvImportProperties`) |
 | `client` | Outbound clients to external services (e.g. Gemini), used by services |
 | `exception` | Domain exceptions and the global `@RestControllerAdvice` |
 
@@ -73,9 +73,13 @@ controller ──► service ──► repository
 - Business rule violations: domain exceptions thrown by services.
 - A single global `@RestControllerAdvice` in `exception` translates exceptions to HTTP error responses. Controllers do not catch-and-translate.
 
-## 7. Persistence
+## 7. Persistence and background work
 
-- Storage is in-memory only; do not add a database, JDBC, JPA or migrations without amending this document.
+- Storage is in-memory only; do not add a database, JDBC, JPA or migrations without amending this document. All CVs and import jobs are lost on restart.
+- Long-running work (the Gemini call) never runs on a request thread. The controller returns `202 Accepted` with an import job (`CvImport`: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`); the work runs on the bounded `cvImportExecutor` (`cv.import.pool-size`, `cv.import.queue-capacity`) and its outcome is recorded on the job.
+- If the queue is full, `CvImportService.submit` deletes the new job and throws `ServerBusyException` (`503`). The client never receives that job's id, so no record of it may remain.
+- Code running on a worker thread must not let an exception escape: record the failure on the job (`errorCode`, user-safe `errorMessage`) and log the details. `CvImportProcessor` is the only place that does this.
+- Services that run concurrently must keep check-then-write sequences atomic (for example `CvService.save` is `synchronized`).
 
 ## 8. API documentation
 
@@ -88,12 +92,15 @@ controller ──► service ──► repository
 |---|---|
 | Controller | `@WebMvcTest` with the service mocked |
 | Service | Plain unit tests with mocked repositories (Mockito), no Spring context |
-| Repository | `RepositoryContractTest` (shared contract) run against the in-memory implementation as a plain unit test |
+| Repository | Shared contract tests (`RepositoryContractTest`, `CvImportRepositoryContractTest`) run against the in-memory implementations as plain unit tests |
 | Mapper | Unit tests for non-trivial mappings |
+| End to end | `@SpringBootTest` on a random port in the `e2e` test package: real HTTP, real generated PDF/DOCX files, the real executor; only `GeminiClient` is mocked |
 
-- Tests mirror the main package structure.
-- Tests must not bypass layering (e.g. a controller test must not hit the database).
+- Tests mirror the main package structure; end-to-end tests live in `e2e`.
+- Tests must not bypass layering (e.g. a controller test must not reach a repository).
+- Multipart size limits are enforced by the servlet container, so they are tested against a real server, not with `MockMvc`.
+- Tests of asynchronous behaviour wait with Awaitility and use a client read timeout, so a regression fails fast instead of hanging.
 
 ## 10. Dependencies required by this architecture
 
-`spring-boot-starter-webmvc`, `spring-boot-starter-validation`, MapStruct (+ processor, ordered after Lombok with `lombok-mapstruct-binding`), springdoc-openapi. Add them only as the code that needs them is introduced.
+`spring-boot-starter-webmvc`, `spring-boot-starter-validation`, `spring-boot-starter-restclient` (Gemini client), PDFBox and Apache POI (text extraction), MapStruct (+ processor, ordered after Lombok with `lombok-mapstruct-binding`), springdoc-openapi. Add them only as the code that needs them is introduced.
