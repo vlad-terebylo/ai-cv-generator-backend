@@ -7,6 +7,9 @@ spring:
       max-request-size: 3MB
 
 cv:
+  import:
+    pool-size: 4
+    queue-capacity: 20
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.8-flash}

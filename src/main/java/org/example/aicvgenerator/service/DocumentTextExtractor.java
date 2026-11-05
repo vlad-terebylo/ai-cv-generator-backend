@@ -17,23 +17,30 @@ import org.springframework.stereotype.Service;
 @Service
 public class DocumentTextExtractor {
 
-    public String extract(CvDocument document) {
-        String name = document.fileName() == null ? "" : document.fileName().toLowerCase(Locale.ROOT);
+    /** Cheap checks that need no parsing: the file is not empty and is a .pdf or .docx. */
+    public void requireSupported(CvDocument document) {
         if (document.content() == null || document.content().length == 0) {
             throw new UnreadableDocumentException("The uploaded file is empty");
         }
-        String text;
-        if (name.endsWith(".pdf")) {
-            text = fromPdf(document.content());
-        } else if (name.endsWith(".docx")) {
-            text = fromDocx(document.content());
-        } else {
+        String name = fileNameOf(document);
+        if (!name.endsWith(".pdf") && !name.endsWith(".docx")) {
             throw new UnsupportedDocumentException("Only .pdf and .docx files are supported");
         }
+    }
+
+    public String extract(CvDocument document) {
+        requireSupported(document);
+        String text = fileNameOf(document).endsWith(".pdf")
+                ? fromPdf(document.content())
+                : fromDocx(document.content());
         if (text.isBlank()) {
             throw new UnreadableDocumentException("No text could be extracted from the file");
         }
         return text.strip();
+    }
+
+    private String fileNameOf(CvDocument document) {
+        return document.fileName() == null ? "" : document.fileName().toLowerCase(Locale.ROOT);
     }
 
     private String fromPdf(byte[] content) {

@@ -132,14 +132,19 @@ Fast local failures still fail synchronously: unsupported extension / empty file
    - `getById(UUID)`: throws `CvImportNotFoundException` if missing.
 4. `service/CvImportProcessor.run(UUID, CvDocument)`: job -> `PROCESSING`; `cvService.process(document)`; job -> `COMPLETED` with the saved CV's id. Catch `NotACvException` -> `NOT_A_CV`, `UnreadableDocumentException` / `UnsupportedDocumentException` -> `UNREADABLE_DOCUMENT`, `AiServiceException` -> `AI_SERVICE_ERROR`, any other `RuntimeException` -> `INTERNAL_ERROR` with a generic message (log the stack trace server-side). The processor never rethrows, so a worker thread cannot die on a job failure.
 5. New exceptions in `exception`: `ServerBusyException`, `CvImportNotFoundException`.
+6. `DocumentTextExtractor.requireSupported(CvDocument)`: the cheap "non-empty and `.pdf`/`.docx`" check, used by both `extract` and `CvImportService.submit` so the rule is not duplicated.
+7. Concurrency fix (added during implementation, approved by the user): import workers run in parallel, so two workers saving the same email could both see "no CV yet" and the second insert would fail with `DuplicateEmailException`. `CvService.save` is now `synchronized` so the email lookup + insert is atomic. Only the quick save is serialized, not the Gemini call.
 
-**Files:** `CvImportProperties`, `AsyncConfig`, `CvImportService`, `CvImportProcessor`, two exceptions, `application.yaml`.
+**Files:** `CvImportProperties`, `AsyncConfig`, `CvImportService`, `CvImportProcessor`, two exceptions, `DocumentTextExtractor`, `CvService`, `application.yaml`.
 
 **Layering:** `CvImportService` -> `CvImportProcessor` -> `CvService` -> repositories / `client`; `CvImportService` and the processor also use `CvImportRepository` and `CvImportEntityMapper`. No cycles, and nothing depends on controller types. The executor is injected as a `TaskExecutor` qualified by `cvImportExecutor`.
 
 **Tests (Mockito, no Spring)**
 - `CvImportServiceTest`: job created `PENDING` and task queued; unsupported extension and empty file rejected without creating a job; rejected execution -> job `FAILED/SERVER_BUSY` and `ServerBusyException`; `getById` unknown -> `CvImportNotFoundException`.
 - `CvImportProcessorTest`: success -> `PROCESSING` then `COMPLETED` with `cvId`; `NotACvException`, `UnreadableDocumentException`, `AiServiceException` and an unexpected exception each give `FAILED` with the matching code; the processor does not rethrow.
+- `CvServiceConcurrencyTest`: two threads import the same email against the real in-memory repositories (with a deliberately slow email lookup to widen the race); both succeed and exactly one creates the CV. Verified to fail without the `synchronized` fix.
+- `DocumentTextExtractorTest`: `requireSupported` accepts `.pdf`/`.docx` in any case and rejects other extensions, missing names and empty content.
+- Existing context test: the `cvImportExecutor` bean exists with the configured pool size, queue capacity and thread-name prefix.
 
 **Done when:** all of the above pass without a Spring context.
 

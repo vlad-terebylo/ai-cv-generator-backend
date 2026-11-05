@@ -53,7 +53,8 @@ public class CvService {
         return entityMapper.toDomain(entity, experienceRepository.findByCvId(id));
     }
 
-    private CvSaveResult save(Cv cv) {
+    /** Synchronized because import workers run in parallel and the email lookup + insert must be atomic. */
+    private synchronized CvSaveResult save(Cv cv) {
         var existing = cvRepository.findByEmail(cv.getEmail());
         long id;
         if (existing.isPresent()) {
