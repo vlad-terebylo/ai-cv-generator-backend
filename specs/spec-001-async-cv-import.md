@@ -78,7 +78,7 @@ Fast local failures still fail synchronously: unsupported extension / empty file
 | `POST /api/v1/cvs` (multipart `file`) | `202` + `Location` + `JobResponse` | `400` unsupported/empty file, `413` too large, `503` queue full |
 | `GET /api/v1/cv-imports/{id}` | `200` `JobResponse` | `404` unknown id |
 
-`JobResponse` (renamed from `CvImportResponse` and made entity-neutral after Phase 6): `id`, `status`, `name` (the uploaded file name), `result`, `errorCode`, `errorMessage`, `createdAt`, `updatedAt`. `result` is `{"type": "CV", "id": 42}` once the job is `COMPLETED` and `null` before; the CV-specific `cvId` and `fileName` stay on the domain model and entity, and only `CvImportDtoMapper` maps them to `result` and `name`. A future job type reuses `JobResponse` with its own `result.type`.
+`JobResponse` (renamed from `CvImportResponse` and made entity-neutral after Phase 6): `id`, `status` (`JobStatus` enum), `entityType` (`EntityType` enum, currently only `CV`), `entityId`, `errorCode`, `errorMessage`, `createdAt`, `updatedAt`. It only references the produced entity and never embeds it: `entityType` and `entityId` are `null` until the job is `COMPLETED`, then `CV` and the CV's id. The uploaded file name is no longer exposed. The CV-specific `cvId` and `fileName` stay on the domain model and entity, and only `CvImportDtoMapper` maps `cvId` to `entityType` / `entityId`. A future job type adds an `EntityType` constant and reuses `JobResponse`.
 
 ---
 
@@ -166,7 +166,7 @@ Fast local failures still fail synchronously: unsupported extension / empty file
 **Tests (`@WebMvcTest`, services mocked)**
 - `POST` -> `202`, `Location` header, body with `id` and `PENDING`.
 - `POST` with unsupported file -> `400`; service throws busy -> `503`; missing `file` part -> `400`.
-- `GET /cv-imports/{id}` -> `200` for `PENDING`, `COMPLETED` (with `result.type` = `CV` and `result.id`) and `FAILED` (with error fields); unknown id -> `404`.
+- `GET /cv-imports/{id}` -> `200` for `PENDING`, `COMPLETED` (with `entityType` = `CV` and `entityId`) and `FAILED` (with error fields); unknown id -> `404`.
 - Update the existing `CvControllerTest` upload cases (they currently expect `201`/`200`/`422` from the sync flow).
 
 **Done when:** controller tests pass; Swagger UI shows the new contract.

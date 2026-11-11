@@ -72,7 +72,7 @@ class CvImportE2ETest {
             JsonNode finished = api.awaitFinished(jobId);
 
             assertThat(finished.get("status").asString()).isEqualTo("COMPLETED");
-            assertThat(finished.get("result").get("type").asString()).isEqualTo("CV");
+            assertThat(finished.get("entityType").asString()).isEqualTo("CV");
             ResponseEntity<JsonNode> stored = api.cv(CvImportApi.resultId(finished));
             assertThat(stored.getStatusCode().value()).isEqualTo(200);
             assertThat(stored.getBody().get("email").asString()).isEqualTo(email);
@@ -105,7 +105,8 @@ class CvImportE2ETest {
 
         assertThat(finished.get("status").asString()).isEqualTo("FAILED");
         assertThat(finished.get("errorCode").asString()).isEqualTo("NOT_A_CV");
-        assertThat(finished.get("result").isNull()).isTrue();
+        assertThat(finished.get("entityType").isNull()).isTrue();
+        assertThat(finished.get("entityId").isNull()).isTrue();
     }
 
     @Test

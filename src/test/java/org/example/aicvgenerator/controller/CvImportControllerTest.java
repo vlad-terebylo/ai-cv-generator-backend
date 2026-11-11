@@ -41,8 +41,8 @@ class CvImportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"))
-                .andExpect(jsonPath("$.name").value("cv.pdf"))
-                .andExpect(jsonPath("$.result").doesNotExist());
+                .andExpect(jsonPath("$.entityType").doesNotExist())
+                .andExpect(jsonPath("$.entityId").doesNotExist());
     }
 
     @Test
@@ -52,10 +52,12 @@ class CvImportControllerTest {
         mockMvc.perform(get("/api/v1/cv-imports/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.result.type").value("CV"))
-                .andExpect(jsonPath("$.result.id").value(42))
+                .andExpect(jsonPath("$.entityType").value("CV"))
+                .andExpect(jsonPath("$.entityId").value(42))
                 .andExpect(jsonPath("$.cvId").doesNotExist())
-                .andExpect(jsonPath("$.fileName").doesNotExist());
+                .andExpect(jsonPath("$.fileName").doesNotExist())
+                .andExpect(jsonPath("$.name").doesNotExist())
+                .andExpect(jsonPath("$.result").doesNotExist());
     }
 
     @Test
@@ -68,7 +70,7 @@ class CvImportControllerTest {
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.errorCode").value("NOT_A_CV"))
                 .andExpect(jsonPath("$.errorMessage").value("The uploaded document is not a CV"))
-                .andExpect(jsonPath("$.result").doesNotExist());
+                .andExpect(jsonPath("$.entityId").doesNotExist());
     }
 
     @Test
