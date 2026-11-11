@@ -75,10 +75,10 @@ Fast local failures still fail synchronously: unsupported extension / empty file
 
 | Endpoint | Success | Errors |
 |---|---|---|
-| `POST /api/v1/cvs` (multipart `file`) | `202` + `Location` + `CvImportResponse` | `400` unsupported/empty file, `413` too large, `503` queue full |
-| `GET /api/v1/cv-imports/{id}` | `200` `CvImportResponse` | `404` unknown id |
+| `POST /api/v1/cvs` (multipart `file`) | `202` + `Location` + `JobResponse` | `400` unsupported/empty file, `413` too large, `503` queue full |
+| `GET /api/v1/cv-imports/{id}` | `200` `JobResponse` | `404` unknown id |
 
-`CvImportResponse`: `id`, `status`, `fileName`, `cvId`, `errorCode`, `errorMessage`, `createdAt`, `updatedAt`.
+`JobResponse` (renamed from `CvImportResponse` and made entity-neutral after Phase 6): `id`, `status`, `name` (the uploaded file name), `result`, `errorCode`, `errorMessage`, `createdAt`, `updatedAt`. `result` is `{"type": "CV", "id": 42}` once the job is `COMPLETED` and `null` before; the CV-specific `cvId` and `fileName` stay on the domain model and entity, and only `CvImportDtoMapper` maps them to `result` and `name`. A future job type reuses `JobResponse` with its own `result.type`.
 
 ---
 
@@ -155,18 +155,18 @@ Fast local failures still fail synchronously: unsupported extension / empty file
 **Goal:** expose the async flow over HTTP.
 
 **Tasks**
-1. `controller/dto/CvImportResponse` (record, springdoc `@Schema` annotations).
+1. `controller/dto/JobResponse` (record, springdoc `@Schema` annotations; originally `CvImportResponse`).
 2. `mapper/CvImportDtoMapper` (domain -> response).
-3. `CvController.upload` now calls `CvImportService.submit` and returns `202` with `Location: /api/v1/cv-imports/{id}` and the `CvImportResponse`. Update its springdoc annotations (`202`, `400`, `413`, `503`).
+3. `CvController.upload` now calls `CvImportService.submit` and returns `202` with `Location: /api/v1/cv-imports/{id}` and the `JobResponse`. Update its springdoc annotations (`202`, `400`, `413`, `503`).
 4. New `CvImportController`: `GET /api/v1/cv-imports/{id}` -> `200` or `404` (one controller per resource).
 5. `GlobalExceptionHandler`: `ServerBusyException` -> `503`, `CvImportNotFoundException` -> `404`. The `NotACvException` and `AiServiceException` handlers stay only if something else can still throw them to the web layer; otherwise remove them.
 
-**Files:** `CvImportResponse`, `CvImportDtoMapper`, `CvController`, `CvImportController`, `GlobalExceptionHandler`.
+**Files:** `JobResponse`, `CvImportDtoMapper`, `CvController`, `CvImportController`, `GlobalExceptionHandler`.
 
 **Tests (`@WebMvcTest`, services mocked)**
 - `POST` -> `202`, `Location` header, body with `id` and `PENDING`.
 - `POST` with unsupported file -> `400`; service throws busy -> `503`; missing `file` part -> `400`.
-- `GET /cv-imports/{id}` -> `200` for `PENDING`, `COMPLETED` (with `cvId`) and `FAILED` (with error fields); unknown id -> `404`.
+- `GET /cv-imports/{id}` -> `200` for `PENDING`, `COMPLETED` (with `result.type` = `CV` and `result.id`) and `FAILED` (with error fields); unknown id -> `404`.
 - Update the existing `CvControllerTest` upload cases (they currently expect `201`/`200`/`422` from the sync flow).
 
 **Done when:** controller tests pass; Swagger UI shows the new contract.

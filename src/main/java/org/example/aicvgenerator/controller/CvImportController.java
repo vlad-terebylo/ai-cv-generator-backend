@@ -2,7 +2,7 @@ package org.example.aicvgenerator.controller;
 
 import java.util.UUID;
 
-import org.example.aicvgenerator.controller.dto.CvImportResponse;
+import org.example.aicvgenerator.controller.dto.JobResponse;
 import org.example.aicvgenerator.mapper.CvImportDtoMapper;
 import org.example.aicvgenerator.service.CvImportService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,9 +26,9 @@ public class CvImportController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get the progress of a CV import",
-            description = "When COMPLETED, cvId points to the stored CV; when FAILED, errorCode and errorMessage say why.")
+            description = "When COMPLETED, result gives the type and id of the stored CV; when FAILED, errorCode and errorMessage say why.")
     @ApiResponse(responseCode = "404", description = "Import not found (jobs are lost when the application restarts)")
-    public CvImportResponse get(@PathVariable UUID id) {
+    public JobResponse get(@PathVariable UUID id) {
         return mapper.toResponse(cvImportService.getById(id));
     }
 }

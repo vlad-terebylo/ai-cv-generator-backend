@@ -8,7 +8,7 @@ CV import is implemented on `feature/cv-import` and is asynchronous (see `specs/
 
 - `POST /api/v1/cvs` takes a `.pdf`/`.docx` upload (max 2 MB), checks the type, creates an import job and returns `202 Accepted` with a `Location` header. It does not wait for the AI.
 - A bounded worker pool then extracts the text (PDFBox / POI), asks Gemini whether it is a CV and to parse it, and upserts it by email into the in-memory repositories.
-- `GET /api/v1/cv-imports/{id}` returns the job: `PENDING`, `PROCESSING`, `COMPLETED` (carries `cvId`) or `FAILED` (`errorCode` is `NOT_A_CV`, `UNREADABLE_DOCUMENT`, `AI_SERVICE_ERROR` or `INTERNAL_ERROR`, plus a safe `errorMessage`). Clients poll it.
+- `GET /api/v1/cv-imports/{id}` returns the job as a generic `JobResponse` (`id`, `status`, `name`, `result`, `errorCode`, `errorMessage`, `createdAt`, `updatedAt`): `PENDING`, `PROCESSING`, `COMPLETED` (`result` is `{"type": "CV", "id": 42}`, null before that) or `FAILED` (`errorCode` is `NOT_A_CV`, `UNREADABLE_DOCUMENT`, `AI_SERVICE_ERROR` or `INTERNAL_ERROR`, plus a safe `errorMessage`). Clients poll it. `JobResponse` is not CV-specific, so other job types can reuse it with their own `result.type`; only `CvImportDtoMapper` knows about CVs.
 - `GET /api/v1/cvs/{id}` returns a stored CV.
 - A non-CV, or a CV missing first name/last name/email, fails the job and saves nothing.
 - Immediate errors: unsupported or empty file `400`, file over the limit `413`, worker queue full `503`, unknown job or CV `404`.
@@ -40,4 +40,4 @@ On Windows use `gradlew.bat` (or `./gradlew` in Git Bash).
 
 1. `POST /api/v1/cvs`, body `form-data`, key `file` of type File. Expect `202` and a job `id`.
 2. Poll `GET /api/v1/cv-imports/{id}` until `status` is `COMPLETED` or `FAILED`.
-3. On `COMPLETED`, `GET /api/v1/cvs/{cvId}`.
+3. On `COMPLETED`, `GET /api/v1/cvs/{result.id}`.

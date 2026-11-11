@@ -72,7 +72,8 @@ class CvImportE2ETest {
             JsonNode finished = api.awaitFinished(jobId);
 
             assertThat(finished.get("status").asString()).isEqualTo("COMPLETED");
-            ResponseEntity<JsonNode> stored = api.cv(finished.get("cvId").asLong());
+            assertThat(finished.get("result").get("type").asString()).isEqualTo("CV");
+            ResponseEntity<JsonNode> stored = api.cv(CvImportApi.resultId(finished));
             assertThat(stored.getStatusCode().value()).isEqualTo(200);
             assertThat(stored.getBody().get("email").asString()).isEqualTo(email);
             assertThat(stored.getBody().get("firstName").asString()).isEqualTo("Valieria");
@@ -92,7 +93,7 @@ class CvImportE2ETest {
         JsonNode finished = api.awaitFinished(accepted.getBody().get("id").asString());
 
         assertThat(finished.get("status").asString()).isEqualTo("COMPLETED");
-        assertThat(api.cv(finished.get("cvId").asLong()).getBody().get("summary").asString()).isEqualTo("docx summary");
+        assertThat(api.cv(CvImportApi.resultId(finished)).getBody().get("summary").asString()).isEqualTo("docx summary");
     }
 
     @Test
@@ -104,7 +105,7 @@ class CvImportE2ETest {
 
         assertThat(finished.get("status").asString()).isEqualTo("FAILED");
         assertThat(finished.get("errorCode").asString()).isEqualTo("NOT_A_CV");
-        assertThat(finished.get("cvId").isNull()).isTrue();
+        assertThat(finished.get("result").isNull()).isTrue();
     }
 
     @Test
@@ -141,8 +142,8 @@ class CvImportE2ETest {
 
         assertThat(first.get("status").asString()).isEqualTo("COMPLETED");
         assertThat(second.get("status").asString()).isEqualTo("COMPLETED");
-        assertThat(second.get("cvId").asLong()).isEqualTo(first.get("cvId").asLong());
-        JsonNode stored = api.cv(second.get("cvId").asLong()).getBody();
+        assertThat(CvImportApi.resultId(second)).isEqualTo(CvImportApi.resultId(first));
+        JsonNode stored = api.cv(CvImportApi.resultId(second)).getBody();
         assertThat(stored.get("summary").asString()).isEqualTo("second summary");
         assertThat(stored.get("experience")).hasSize(1);
         assertThat(stored.get("experience").get(0).get("position").asString()).isEqualTo("Senior Java Developer");

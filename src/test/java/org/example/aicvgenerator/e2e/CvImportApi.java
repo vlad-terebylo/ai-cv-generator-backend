@@ -49,6 +49,11 @@ final class CvImportApi {
         return get("/api/v1/cvs/" + id);
     }
 
+    /** The id of the entity a COMPLETED job produced, read from its generic {@code result} reference. */
+    static long resultId(JsonNode job) {
+        return job.get("result").get("id").asLong();
+    }
+
     /** Polls the job until it is COMPLETED or FAILED and returns that final state. */
     JsonNode awaitFinished(String jobId) {
         return Awaitility.await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(50))

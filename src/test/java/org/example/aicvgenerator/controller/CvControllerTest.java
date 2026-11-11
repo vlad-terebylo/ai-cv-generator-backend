@@ -61,8 +61,8 @@ class CvControllerTest {
                 .andExpect(header().string("Location", "/api/v1/cv-imports/" + id))
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"))
-                .andExpect(jsonPath("$.fileName").value("cv.pdf"))
-                .andExpect(jsonPath("$.cvId").doesNotExist());
+                .andExpect(jsonPath("$.name").value("cv.pdf"))
+                .andExpect(jsonPath("$.result").doesNotExist());
     }
 
     @Test

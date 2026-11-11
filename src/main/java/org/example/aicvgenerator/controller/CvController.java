@@ -3,8 +3,8 @@ package org.example.aicvgenerator.controller;
 import java.io.IOException;
 import java.net.URI;
 
-import org.example.aicvgenerator.controller.dto.CvImportResponse;
 import org.example.aicvgenerator.controller.dto.CvResponse;
+import org.example.aicvgenerator.controller.dto.JobResponse;
 import org.example.aicvgenerator.exception.UnreadableDocumentException;
 import org.example.aicvgenerator.mapper.CvDtoMapper;
 import org.example.aicvgenerator.mapper.CvImportDtoMapper;
@@ -47,7 +47,7 @@ public class CvController {
     @ApiResponse(responseCode = "400", description = "Unsupported, empty or unreadable file")
     @ApiResponse(responseCode = "413", description = "File too large")
     @ApiResponse(responseCode = "503", description = "Too many imports queued, try again later")
-    public ResponseEntity<CvImportResponse> upload(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<JobResponse> upload(@RequestParam("file") MultipartFile file) {
         CvImport job = cvImportService.submit(toDocument(file));
         URI location = UriComponentsBuilder.fromPath("/api/v1/cv-imports/{id}").buildAndExpand(job.getId()).toUri();
         return ResponseEntity.accepted().location(location).body(importMapper.toResponse(job));
