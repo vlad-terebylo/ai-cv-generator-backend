@@ -40,6 +40,7 @@ controller ──► service ──► repository
 - Layers depend only on the layer directly below. No layer skipping, no upward or circular dependencies.
 - Controllers do not call other controllers; services may call other services but never create cycles; repositories do not call other repositories' services.
 - `client` is called only by services; it depends on nothing but `config`, and it returns/accepts its own small types, never DTOs or entities.
+- Every outbound call in `client` has explicit connect and read timeouts (configured in `config`), so a stalled remote service can never hold a worker thread. Only a remote service's temporary errors (503, 429) are retried, with a bounded number of attempts; timeouts and other errors fail immediately.
 - `config`, `exception`, and `mapper` may be used by any layer but must not contain business logic.
 
 ## 4. Models per layer
@@ -78,7 +79,7 @@ controller ──► service ──► repository
 - Storage is in-memory only; do not add a database, JDBC, JPA or migrations without amending this document. All CVs and import jobs are lost on restart.
 - Long-running work (the Gemini call) never runs on a request thread. The controller returns `202 Accepted` with an import job (`CvImport`: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`); the work runs on the bounded `cvImportExecutor` (`cv.import.pool-size`, `cv.import.queue-capacity`) and its outcome is recorded on the job.
 - If the queue is full, `CvImportService.submit` deletes the new job and throws `ServerBusyException` (`503`). The client never receives that job's id, so no record of it may remain.
-- Code running on a worker thread must not let an exception escape: record the failure on the job (`errorCode`, user-safe `errorMessage`) and log the details. `CvImportProcessor` is the only place that does this.
+- Code running on a worker thread must not let an exception escape: record the failure on the job (`errorCode`, user-safe `errorMessage`) and log the details. A JVM `Error` is recorded on the job the same way and then rethrown, so a job can never stay in `PROCESSING`. `CvImportProcessor` is the only place that does this.
 - Services that run concurrently must keep check-then-write sequences atomic (for example `CvService.save` is `synchronized`).
 
 ## 8. API documentation

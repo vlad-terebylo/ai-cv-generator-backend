@@ -27,7 +27,7 @@ The upload request thread is blocked for the full duration of the Gemini call. S
 
 - **Dropped: "keep Gemini out of the transaction".** There are no transactions or database connections any more, so the earlier `CvService` analyze/save split is not needed. The worker simply calls the existing `CvService.process`.
 - **Dropped: database work.** No migration, JDBC repository, `jdbc` profile, Testcontainers or restart cleanup. After a restart all jobs and CVs are gone, and polling an old job id returns `404`.
-- No Gemini connect/read timeouts (explicitly skipped by the user; see risks).
+- No Gemini connect/read timeouts in the original scope (skipped by the user at the time); added later, see "Follow-up: Gemini resilience".
 - No retries, no job expiry/cleanup, no cancellation.
 - No storage of the uploaded file beyond the in-memory handoff to the worker.
 - No change to `GET /api/v1/cvs/{id}`.
@@ -204,9 +204,21 @@ Fixtures: a tiny real `.pdf` and `.docx` generated in the test with PDFBox / POI
 
 ---
 
+## Follow-up: Gemini resilience (added after Phase 6)
+
+Real use showed jobs that take very long. Cause: the Gemini call had no timeout, so a stalled or very slow call kept a worker thread busy and the job in `PROCESSING`. Changes:
+
+1. `GeminiClient` has connect (5s) and read (60s) timeouts, set from `cv.gemini.*`; a timeout fails the job with `AI_SERVICE_ERROR`.
+2. It retries only Google's temporary errors (503, 429), at most `max-attempts` (3) times with a growing pause; timeouts and other errors are not retried.
+3. The request sets `thinkingConfig.thinkingBudget` (default 0) so the model does not spend time "thinking"; configurable and omitted when null.
+4. `CvImportProcessor` also catches a JVM `Error`, records it on the job as `INTERNAL_ERROR` and rethrows it, so a job cannot stay in `PROCESSING`.
+5. Timing is logged per job (text extraction, Gemini wait, saving, total).
+
+Tests: `GeminiClientTest` runs the real client against a local HTTP server (parsing, retries on 503/429, no retry on 400 or timeout, read timeout fails fast, empty/malformed answers, missing key); `CvImportProcessorTest` covers the `Error` case. Verified that removing the read timeout makes the timeout test fail.
+
 ## 7. Risks
 
-- **No Gemini timeouts:** a stalled Gemini call keeps its worker thread busy indefinitely. If all 4 threads stall, new jobs stay `PENDING`; after 20 queued jobs, `POST` returns `503`. The upload endpoint itself stays fast, but processing stops until restart. Adding connect/read timeouts later is a small change to the `GeminiClient` / `RestClient` setup.
+- **~~No Gemini timeouts~~ (fixed in the follow-up above):** originally a stalled Gemini call kept its worker thread busy indefinitely. If all 4 threads stall, new jobs stay `PENDING`; after 20 queued jobs, `POST` returns `503`. The upload endpoint itself stays fast, but processing stops until restart. Adding connect/read timeouts later is a small change to the `GeminiClient` / `RestClient` setup.
 - **Breaking API change:** every caller of `POST /api/v1/cvs` must switch to polling.
 - **Lost data on restart:** jobs, CVs and queued uploads exist only in memory. After a restart `GET /api/v1/cv-imports/{id}` returns `404` for old ids.
 - **Unbounded memory growth:** finished jobs are never removed, and with in-memory storage they accumulate on the heap. Job expiry or a size cap is out of scope here but worth a follow-up.

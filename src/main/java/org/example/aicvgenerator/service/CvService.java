@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CvService {
@@ -33,8 +35,11 @@ public class CvService {
 
     /** Parses the document and stores it; an existing CV with the same email is replaced. */
     public CvSaveResult process(CvDocument document) {
+        long start = System.nanoTime();
         String text = textExtractor.extract(document);
+        long extracted = System.nanoTime();
         CvExtraction extraction = geminiClient.extract(text);
+        long analysed = System.nanoTime();
         if (!extraction.isCv()) {
             throw new NotACvException("The uploaded document is not a CV");
         }
@@ -45,7 +50,11 @@ public class CvService {
         }
         cv.setEmail(cv.getEmail().strip().toLowerCase(Locale.ROOT));
         cv.setSourceFileName(document.fileName());
-        return save(cv);
+        CvSaveResult result = save(cv);
+        long saved = System.nanoTime();
+        log.info("Processed {}: text extraction {} ms, Gemini {} ms, saving {} ms", document.fileName(),
+                (extracted - start) / 1_000_000, (analysed - extracted) / 1_000_000, (saved - analysed) / 1_000_000);
+        return result;
     }
 
     public Cv getById(long id) {

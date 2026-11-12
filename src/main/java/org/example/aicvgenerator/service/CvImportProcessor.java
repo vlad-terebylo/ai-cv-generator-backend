@@ -34,8 +34,12 @@ public class CvImportProcessor {
     private final CvImportRepository cvImportRepository;
     private final CvImportEntityMapper mapper;
 
-    /** Never throws: any failure ends up on the job so the worker thread survives. */
+    /**
+     * Never throws an exception: any failure ends up on the job so the worker thread survives. A JVM {@link Error}
+     * is recorded on the job as well, so the job cannot stay in PROCESSING, and then rethrown.
+     */
     public void run(UUID jobId, CvDocument document) {
+        long start = System.nanoTime();
         try {
             update(jobId, job -> job.setStatus(CvImportStatus.PROCESSING));
             CvSaveResult result = cvService.process(document);
@@ -53,6 +57,12 @@ public class CvImportProcessor {
         } catch (RuntimeException e) {
             log.error("Unexpected failure for import {}", jobId, e);
             markFailed(jobId, INTERNAL_ERROR, "The document could not be processed");
+        } catch (Error e) {
+            log.error("Fatal error for import {}", jobId, e);
+            markFailed(jobId, INTERNAL_ERROR, "The document could not be processed");
+            throw e;
+        } finally {
+            log.info("Import {} took {} ms", jobId, (System.nanoTime() - start) / 1_000_000);
         }
     }
 

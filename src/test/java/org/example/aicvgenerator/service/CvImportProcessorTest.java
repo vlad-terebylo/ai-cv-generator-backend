@@ -1,6 +1,7 @@
 package org.example.aicvgenerator.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -103,6 +104,15 @@ class CvImportProcessorTest {
         when(cvService.process(any())).thenThrow(new IllegalStateException("internal detail"));
 
         processor.run(jobId, document);
+
+        assertFailed("INTERNAL_ERROR", "The document could not be processed");
+    }
+
+    @Test
+    void aJvmErrorIsRecordedOnTheJobSoItCannotStayInProcessingAndThenRethrown() {
+        when(cvService.process(any())).thenThrow(new NoClassDefFoundError("org/apache/pdfbox/Missing"));
+
+        assertThatThrownBy(() -> processor.run(jobId, document)).isInstanceOf(NoClassDefFoundError.class);
 
         assertFailed("INTERNAL_ERROR", "The document could not be processed");
     }

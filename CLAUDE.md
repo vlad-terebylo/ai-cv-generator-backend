@@ -24,7 +24,8 @@ CV import is implemented on `feature/cv-import` and is asynchronous (see `specs/
   - Upload limit: `spring.servlet.multipart.max-file-size` (2MB) and `max-request-size` (3MB).
   - Worker pool: `cv.import.pool-size` (4) and `cv.import.queue-capacity` (20).
   - Gemini needs `GEMINI_API_KEY`; the model is `GEMINI_MODEL`, default `gemini-3.8-flash` (as set in `application.yaml`). Without a key the job ends `FAILED` with `AI_SERVICE_ERROR`.
-- Known limitation: Gemini calls have no timeout, so a stalled call keeps a worker thread busy until the app restarts.
+  - Gemini client (`cv.gemini.*`): `connect-timeout` 5s and `read-timeout` 60s, so a stalled call fails the job instead of holding a worker thread; `max-attempts` 3 with a growing `retry-delay` (1s, 2s) for Google's temporary errors only (503 and 429; other errors and timeouts are not retried); `thinking-budget` 0 (`GEMINI_THINKING_BUDGET`) asks the model not to "think" before answering, which is much faster for field extraction. If a model rejects 0 with a 400, set `GEMINI_THINKING_BUDGET` to an empty value to leave its default.
+- Timing is logged for every job: `Gemini … answered in N ms`, `Processed <file>: text extraction N ms, Gemini N ms, saving N ms` and `Import <id> took N ms`. Use them to see where the time goes.
 
 ## Commands
 

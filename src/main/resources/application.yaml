@@ -14,3 +14,11 @@ cv:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.8-flash}
     base-url: https://generativelanguage.googleapis.com/v1beta
+    connect-timeout: 5s
+    read-timeout: 60s
+    # tries for temporary Google errors (503, 429); the pause before the next try grows: 1s, 2s, ...
+    max-attempts: 3
+    retry-delay: 1s
+    # 0 = model does not "think" before answering (much faster for field extraction);
+    # set GEMINI_THINKING_BUDGET to an empty value if the model rejects 0
+    thinking-budget: ${GEMINI_THINKING_BUDGET:0}
