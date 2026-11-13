@@ -19,6 +19,7 @@ cv:
     # tries for temporary Google errors (503, 429); the pause before the next try grows: 1s, 2s, ...
     max-attempts: 3
     retry-delay: 1s
-    # 0 = model does not "think" before answering (much faster for field extraction);
-    # set GEMINI_THINKING_BUDGET to an empty value if the model rejects 0
-    thinking-budget: ${GEMINI_THINKING_BUDGET:0}
+    # Optional. Empty = send nothing about thinking, which every model accepts. Set GEMINI_THINKING_BUDGET=0 only for
+    # models that take a thinking budget (e.g. Gemini 2.5) to switch thinking off; Gemini 3 models are documented
+    # with thinking levels, and a model that dislikes the field answers 400 INVALID_ARGUMENT.
+    thinking-budget: ${GEMINI_THINKING_BUDGET:}

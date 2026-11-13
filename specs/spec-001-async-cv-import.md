@@ -210,7 +210,7 @@ Real use showed jobs that take very long. Cause: the Gemini call had no timeout,
 
 1. `GeminiClient` has connect (5s) and read (60s) timeouts, set from `cv.gemini.*`; a timeout fails the job with `AI_SERVICE_ERROR`.
 2. It retries only Google's temporary errors (503, 429), at most `max-attempts` (3) times with a growing pause; timeouts and other errors are not retried.
-3. The request sets `thinkingConfig.thinkingBudget` (default 0) so the model does not spend time "thinking"; configurable and omitted when null.
+3. The request can set `thinkingConfig.thinkingBudget` (`cv.gemini.thinking-budget`). It was first defaulted to 0, but a model that does not take a budget answered `400 INVALID_ARGUMENT`, so it is now empty by default (nothing sent, works with every model) and opt-in with `GEMINI_THINKING_BUDGET=0` for models such as Gemini 2.5.
 4. `CvImportProcessor` also catches a JVM `Error`, records it on the job as `INTERNAL_ERROR` and rethrows it, so a job cannot stay in `PROCESSING`.
 5. Timing is logged per job (text extraction, Gemini wait, saving, total).
 
