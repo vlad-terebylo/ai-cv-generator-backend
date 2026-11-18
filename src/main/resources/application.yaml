@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: AiCvGenerator
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+
+cv:
+  import:
+    pool-size: 4
+    queue-capacity: 20
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+    base-url: https://generativelanguage.googleapis.com/v1beta
+    connect-timeout: 5s
+    read-timeout: 60s
+    # tries for temporary Google errors (503, 429); the pause before the next try grows: 1s, 2s, ...
+    max-attempts: 3
+    retry-delay: 1s
+    # Optional. Empty = send nothing about thinking, which every model accepts. Set GEMINI_THINKING_BUDGET=0 only for
+    # models that take a thinking budget (e.g. Gemini 2.5) to switch thinking off; Gemini 3 models are documented
+    # with thinking levels, and a model that dislikes the field answers 400 INVALID_ARGUMENT.
+    thinking-budget: ${GEMINI_THINKING_BUDGET:}
