@@ -65,12 +65,25 @@ abstract class RepositoryContractTest {
     }
 
     @Test
-    void storesExperienceNewestFirstAndDeletesItByCvId() {
+    void upsertInsertsANewEmailAndReplacesAnExistingOne() {
+        UpsertResult first = cvRepository().upsertByEmail(cv("u@x.com"));
+        CvEntity changed = cv("u@x.com");
+        changed.setSummary("changed");
+        UpsertResult second = cvRepository().upsertByEmail(changed);
+
+        assertThat(first.created()).isTrue();
+        assertThat(second.created()).isFalse();
+        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(cvRepository().findById(first.id())).get().extracting(CvEntity::getSummary).isEqualTo("changed");
+    }
+
+    @Test
+    void storesExperienceNewestFirstAndReplacesItByCvId() {
         long id = cvRepository().insert(cv("e@x.com"));
-        experienceRepository().insertAll(List.of(
-                ExperienceEntity.builder().cvId(id).startYear(2020).endYear(2025).position("Java Developer").company("Nix Orbit").build(),
-                ExperienceEntity.builder().cvId(id).startYear(2025).endYear(null).position("Senior Java Developer").company("Absolute").build(),
-                ExperienceEntity.builder().cvId(id).position("Intern").build()));
+        experienceRepository().replaceByCvId(id, List.of(
+                ExperienceEntity.builder().startYear(2020).endYear(2025).position("Java Developer").company("Nix Orbit").build(),
+                ExperienceEntity.builder().startYear(2025).endYear(null).position("Senior Java Developer").company("Absolute").build(),
+                ExperienceEntity.builder().position("Intern").build()));
 
         List<ExperienceEntity> found = experienceRepository().findByCvId(id);
         assertThat(found).extracting(ExperienceEntity::getPosition)
@@ -78,19 +91,22 @@ abstract class RepositoryContractTest {
         assertThat(found.get(0).getEndYear()).isNull();
         assertThat(found).extracting(ExperienceEntity::getId).doesNotContainNull();
 
-        experienceRepository().deleteByCvId(id);
+        experienceRepository().replaceByCvId(id, List.of(ExperienceEntity.builder().position("Lead").build()));
+        assertThat(experienceRepository().findByCvId(id)).extracting(ExperienceEntity::getPosition)
+                .containsExactly("Lead");
+
+        experienceRepository().replaceByCvId(id, List.of());
         assertThat(experienceRepository().findByCvId(id)).isEmpty();
     }
 
     @Test
-    void deletingExperienceOfOneCvKeepsOthers() {
+    void replacingExperienceOfOneCvKeepsOthers() {
         long first = cvRepository().insert(cv("f1@x.com"));
         long second = cvRepository().insert(cv("f2@x.com"));
-        experienceRepository().insertAll(List.of(
-                ExperienceEntity.builder().cvId(first).position("A").build(),
-                ExperienceEntity.builder().cvId(second).position("B").build()));
+        experienceRepository().replaceByCvId(first, List.of(ExperienceEntity.builder().position("A").build()));
+        experienceRepository().replaceByCvId(second, List.of(ExperienceEntity.builder().position("B").build()));
 
-        experienceRepository().deleteByCvId(first);
+        experienceRepository().replaceByCvId(first, List.of());
 
         assertThat(experienceRepository().findByCvId(first)).isEmpty();
         assertThat(experienceRepository().findByCvId(second)).hasSize(1);

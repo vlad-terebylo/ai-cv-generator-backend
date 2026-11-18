@@ -6,7 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "A processed and stored CV")
 public record CvResponse(
-        Long id,
+        @Schema(description = "Opaque id of the CV; pass it unchanged to GET /api/v1/cvs/{id}")
+        String id,
         String firstName,
         String lastName,
         String email,

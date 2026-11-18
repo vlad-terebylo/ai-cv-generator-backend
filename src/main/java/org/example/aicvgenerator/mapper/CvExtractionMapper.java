@@ -1,6 +1,6 @@
 package org.example.aicvgenerator.mapper;
 
-import org.example.aicvgenerator.client.CvExtraction;
+import org.example.aicvgenerator.service.model.CvExtraction;
 import org.example.aicvgenerator.service.model.Cv;
 import org.example.aicvgenerator.service.model.Experience;
 import org.mapstruct.Mapper;

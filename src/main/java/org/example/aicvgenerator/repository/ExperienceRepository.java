@@ -9,7 +9,6 @@ public interface ExperienceRepository {
     /** Newest first (start year descending, unknown last), then by insertion order. */
     List<ExperienceEntity> findByCvId(long cvId);
 
-    void insertAll(List<ExperienceEntity> entities);
-
-    void deleteByCvId(long cvId);
+    /** Deletes the CV's rows and stores these in their place as one atomic step; stored rows get {@code cvId}. */
+    void replaceByCvId(long cvId, List<ExperienceEntity> entities);
 }

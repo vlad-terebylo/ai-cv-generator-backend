@@ -29,7 +29,7 @@ class UploadSizeLimitTest {
                 return fileName;
             }
         });
-        return RestClient.create("http://localhost:" + port).post()
+        return RestClient.create(String.format("http://localhost:%d", port)).post()
                 .uri("/api/v1/cvs")
                 .body(body)
                 .retrieve()

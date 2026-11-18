@@ -2,6 +2,7 @@ package org.example.aicvgenerator.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.example.aicvgenerator.config.Timing.NANOS_PER_MILLISECOND;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -24,7 +25,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import tools.jackson.databind.json.JsonMapper;
 
-/** Runs the real client against a tiny local HTTP server that plays Google. */
+/** Runs the real client against a tiny local HTTP server that plays Google; the answers are opaque text to it. */
 class GeminiClientTest {
 
     private record Reply(int status, String body, long delayMillis) {
@@ -33,9 +34,11 @@ class GeminiClientTest {
         }
 
         static Reply status(int status) {
-            return new Reply(status, "{\"error\": {\"status\": \"" + status + "\"}}", 0);
+            return new Reply(status, String.format("{\"error\": {\"status\": \"%d\"}}", status), 0);
         }
     }
+
+    private static final Map<String, Object> SCHEMA = Map.of("type", "OBJECT");
 
     private final JsonMapper json = JsonMapper.builder().build();
     private final AtomicInteger requests = new AtomicInteger();
@@ -92,9 +95,9 @@ class GeminiClientTest {
 
     private GeminiClient client(String apiKey, int maxAttempts, Duration readTimeout, Integer thinkingBudget) {
         GeminiProperties properties = new GeminiProperties(apiKey, "gemini-test",
-                "http://127.0.0.1:" + server.getAddress().getPort(), Duration.ofSeconds(2), readTimeout, maxAttempts,
+                String.format("http://127.0.0.1:%d", server.getAddress().getPort()), Duration.ofSeconds(2), readTimeout, maxAttempts,
                 Duration.ofMillis(10), thinkingBudget);
-        return new GeminiClient(properties, RestClient.builder(), json);
+        return new GeminiClient(properties, RestClient.builder());
     }
 
     private GeminiClient client() {
@@ -102,40 +105,25 @@ class GeminiClientTest {
     }
 
     @Test
-    void parsesTheStructuredAnswerAndSendsTheKeyModelAndSchema() {
-        CvExtraction extraction = client().extract("Valieria Karlova, Java developer");
+    void returnsTheAnswerTextAndSendsTheKeyModelPromptAndSchema() {
+        String answer = client().generateJson("Valieria Karlova, Java developer", SCHEMA);
 
-        assertThat(extraction.isCv()).isTrue();
-        assertThat(extraction.firstName()).isEqualTo("Valieria");
-        assertThat(extraction.lastName()).isEqualTo("Karlova");
-        assertThat(extraction.email()).isEqualTo("v.karlova@gmail.com");
-        assertThat(extraction.experience()).singleElement().satisfies(job -> {
-            assertThat(job.startYear()).isEqualTo(2025);
-            assertThat(job.endYear()).isNull();
-            assertThat(job.position()).isEqualTo("Senior Java Developer");
-        });
+        assertThat(json.readTree(answer).get("firstName").asString()).isEqualTo("Valieria");
         assertThat(paths).containsExactly("/models/gemini-test:generateContent");
         assertThat(apiKeys).containsExactly("test-key");
         assertThat(bodies.get(0)).contains("responseSchema").contains("Valieria Karlova, Java developer");
     }
 
     @Test
-    void understandsAnAnswerSayingTheDocumentIsNotACv() {
-        script = attempt -> Reply.ok(answer(false));
-
-        assertThat(client().extract("Invoice 42").isCv()).isFalse();
-    }
-
-    @Test
     void asksTheModelNotToThinkWhenTheBudgetIsZero() {
-        client("test-key", 3, Duration.ofSeconds(5), 0).extract("cv");
+        client("test-key", 3, Duration.ofSeconds(5), 0).generateJson("cv", SCHEMA);
 
         assertThat(bodies.get(0)).contains("\"thinkingConfig\":{\"thinkingBudget\":0}");
     }
 
     @Test
     void leavesThinkingAloneWhenNoBudgetIsConfigured() {
-        client("test-key", 3, Duration.ofSeconds(5), null).extract("cv");
+        client("test-key", 3, Duration.ofSeconds(5), null).generateJson("cv", SCHEMA);
 
         assertThat(bodies.get(0)).doesNotContain("thinkingConfig");
     }
@@ -144,9 +132,7 @@ class GeminiClientTest {
     void retriesWhenGoogleIsTemporarilyUnavailable() {
         script = attempt -> attempt < 3 ? Reply.status(503) : Reply.ok(answer(true));
 
-        CvExtraction extraction = client().extract("cv");
-
-        assertThat(extraction.isCv()).isTrue();
+        assertThat(client().generateJson("cv", SCHEMA)).contains("Valieria");
         assertThat(requests.get()).isEqualTo(3);
     }
 
@@ -154,7 +140,7 @@ class GeminiClientTest {
     void retriesWhenGoogleSaysTooManyRequests() {
         script = attempt -> attempt < 2 ? Reply.status(429) : Reply.ok(answer(true));
 
-        assertThat(client().extract("cv").isCv()).isTrue();
+        assertThat(client().generateJson("cv", SCHEMA)).contains("Valieria");
         assertThat(requests.get()).isEqualTo(2);
     }
 
@@ -162,7 +148,7 @@ class GeminiClientTest {
     void givesUpAfterTheConfiguredNumberOfAttempts() {
         script = attempt -> Reply.status(503);
 
-        assertThatThrownBy(() -> client().extract("cv")).isInstanceOf(AiServiceException.class)
+        assertThatThrownBy(() -> client().generateJson("cv", SCHEMA)).isInstanceOf(AiServiceException.class)
                 .hasMessageContaining("503");
 
         assertThat(requests.get()).isEqualTo(3);
@@ -172,7 +158,7 @@ class GeminiClientTest {
     void doesNotRetryWhenRetriesAreDisabled() {
         script = attempt -> Reply.status(503);
 
-        assertThatThrownBy(() -> client("test-key", 1, Duration.ofSeconds(5), 0).extract("cv"))
+        assertThatThrownBy(() -> client("test-key", 1, Duration.ofSeconds(5), 0).generateJson("cv", SCHEMA))
                 .isInstanceOf(AiServiceException.class);
 
         assertThat(requests.get()).isEqualTo(1);
@@ -182,7 +168,7 @@ class GeminiClientTest {
     void doesNotRetryErrorsThatRetryingCannotFix() {
         script = attempt -> Reply.status(400);
 
-        assertThatThrownBy(() -> client().extract("cv")).isInstanceOf(AiServiceException.class);
+        assertThatThrownBy(() -> client().generateJson("cv", SCHEMA)).isInstanceOf(AiServiceException.class);
 
         assertThat(requests.get()).isEqualTo(1);
     }
@@ -193,8 +179,8 @@ class GeminiClientTest {
         GeminiClient slowAnswerClient = client("test-key", 3, Duration.ofMillis(300), 0);
 
         long start = System.nanoTime();
-        assertThatThrownBy(() -> slowAnswerClient.extract("cv")).isInstanceOf(AiServiceException.class);
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+        assertThatThrownBy(() -> slowAnswerClient.generateJson("cv", SCHEMA)).isInstanceOf(AiServiceException.class);
+        long elapsedMillis = (System.nanoTime() - start) / NANOS_PER_MILLISECOND;
 
         assertThat(elapsedMillis).isLessThan(2_000);
         assertThat(requests.get()).as("a timeout is not retried").isEqualTo(1);
@@ -204,21 +190,13 @@ class GeminiClientTest {
     void failsOnAnAnswerWithoutContent() {
         script = attempt -> Reply.ok("{\"candidates\": []}");
 
-        assertThatThrownBy(() -> client().extract("cv")).isInstanceOf(AiServiceException.class)
+        assertThatThrownBy(() -> client().generateJson("cv", SCHEMA)).isInstanceOf(AiServiceException.class)
                 .hasMessageContaining("empty");
     }
 
     @Test
-    void failsOnAnAnswerThatIsNotValidJson() {
-        script = attempt -> Reply.ok(envelope("this is not json"));
-
-        assertThatThrownBy(() -> client().extract("cv")).isInstanceOf(AiServiceException.class)
-                .hasMessageContaining("malformed");
-    }
-
-    @Test
     void failsWithoutCallingGoogleWhenNoApiKeyIsConfigured() {
-        assertThatThrownBy(() -> client(" ", 3, Duration.ofSeconds(5), 0).extract("cv"))
+        assertThatThrownBy(() -> client(" ", 3, Duration.ofSeconds(5), 0).generateJson("cv", SCHEMA))
                 .isInstanceOf(AiServiceException.class).hasMessageContaining("GEMINI_API_KEY");
 
         assertThat(requests.get()).isZero();

@@ -1,6 +1,6 @@
 package org.example.aicvgenerator.exception;
 
-public class UnreadableDocumentException extends RuntimeException {
+public class UnreadableDocumentException extends RuntimeException implements JobFailure {
 
     public UnreadableDocumentException(String message) {
         super(message);
@@ -8,5 +8,15 @@ public class UnreadableDocumentException extends RuntimeException {
 
     public UnreadableDocumentException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    @Override
+    public String errorCode() {
+        return "UNREADABLE_DOCUMENT";
+    }
+
+    @Override
+    public String safeMessage() {
+        return getMessage();
     }
 }

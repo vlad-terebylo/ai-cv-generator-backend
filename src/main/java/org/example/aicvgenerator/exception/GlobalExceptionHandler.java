@@ -16,17 +16,18 @@ public class GlobalExceptionHandler {
         this.maxFileSize = maxFileSize;
     }
 
-    @ExceptionHandler({UnsupportedDocumentException.class, UnreadableDocumentException.class})
+    @ExceptionHandler({UnsupportedDocumentException.class, UnreadableDocumentException.class, InvalidIdException.class})
     public ProblemDetail handleBadDocument(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ProblemDetail handleTooLarge(MaxUploadSizeExceededException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "The file exceeds the " + maxFileSize + " limit");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
+                String.format("The file exceeds the %s limit", maxFileSize));
     }
 
-    @ExceptionHandler({CvNotFoundException.class, CvImportNotFoundException.class})
+    @ExceptionHandler({CvNotFoundException.class, JobNotFoundException.class})
     public ProblemDetail handleNotFound(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }

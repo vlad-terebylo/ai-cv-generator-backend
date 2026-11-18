@@ -5,24 +5,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.example.aicvgenerator.repository.entity.CvImportEntity;
-import org.example.aicvgenerator.service.model.CvImport;
-import org.example.aicvgenerator.service.model.CvImportStatus;
+import org.example.aicvgenerator.repository.entity.JobEntity;
+import org.example.aicvgenerator.service.model.Job;
+import org.example.aicvgenerator.service.model.JobStatus;
+import org.example.aicvgenerator.service.model.EntityType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mapstruct.factory.Mappers;
 
-class CvImportEntityMapperTest {
+class JobEntityMapperTest {
 
-    private final CvImportEntityMapper mapper = Mappers.getMapper(CvImportEntityMapper.class);
+    private final JobEntityMapper mapper = Mappers.getMapper(JobEntityMapper.class);
 
     @ParameterizedTest
-    @EnumSource(CvImportStatus.class)
-    void convertsEveryStatusBetweenEnumAndString(CvImportStatus status) {
-        CvImport domain = CvImport.builder().id(UUID.randomUUID()).status(status).build();
+    @EnumSource(JobStatus.class)
+    void convertsEveryStatusBetweenEnumAndString(JobStatus status) {
+        Job domain = Job.builder().id(UUID.randomUUID()).status(status).build();
 
-        CvImportEntity entity = mapper.toEntity(domain);
+        JobEntity entity = mapper.toEntity(domain);
 
         assertThat(entity.getStatus()).isEqualTo(status.name());
         assertThat(mapper.toDomain(entity).getStatus()).isEqualTo(status);
@@ -32,11 +33,11 @@ class CvImportEntityMapperTest {
     void mapsAllFieldsBothWays() {
         Instant created = Instant.parse("2026-11-04T10:00:00Z");
         Instant updated = Instant.parse("2026-11-04T10:00:05Z");
-        CvImport domain = CvImport.builder().id(UUID.randomUUID()).status(CvImportStatus.FAILED)
-                .fileName("cv.pdf").cvId(3L).errorCode("NOT_A_CV").errorMessage("nope")
+        Job domain = Job.builder().id(UUID.randomUUID()).status(JobStatus.FAILED)
+                .label("cv.pdf").entityType(EntityType.CV).entityId("3").errorCode("NOT_A_CV").errorMessage("nope")
                 .createdAt(created).updatedAt(updated).build();
 
-        CvImport roundTrip = mapper.toDomain(mapper.toEntity(domain));
+        Job roundTrip = mapper.toDomain(mapper.toEntity(domain));
 
         assertThat(roundTrip).isEqualTo(domain);
     }

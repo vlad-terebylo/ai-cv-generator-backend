@@ -6,35 +6,36 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.example.aicvgenerator.repository.entity.CvImportEntity;
+import org.example.aicvgenerator.repository.entity.JobEntity;
 import org.springframework.stereotype.Repository;
 
-/** Keeps rows in an {@link ArrayList}; timestamps are assigned here. */
+/** Assigns timestamps. Reads and writes copy rows, so callers never hold a stored row. */
 @Repository
-public class InMemoryCvImportRepository implements CvImportRepository {
+public class InMemoryJobRepository implements JobRepository {
 
-    private final List<CvImportEntity> rows = new ArrayList<>();
+    private final List<JobEntity> rows = new ArrayList<>();
 
     @Override
-    public synchronized Optional<CvImportEntity> findById(UUID id) {
+    public synchronized Optional<JobEntity> findById(UUID id) {
         return rows.stream().filter(row -> row.getId().equals(id)).findFirst().map(this::copy);
     }
 
     @Override
-    public synchronized void insert(CvImportEntity entity) {
+    public synchronized void insert(JobEntity entity) {
         Instant now = Instant.now();
-        CvImportEntity row = copy(entity);
+        JobEntity row = copy(entity);
         row.setCreatedAt(now);
         row.setUpdatedAt(now);
         rows.add(row);
     }
 
     @Override
-    public synchronized void update(CvImportEntity entity) {
+    public synchronized void update(JobEntity entity) {
         rows.stream().filter(row -> row.getId().equals(entity.getId())).findFirst().ifPresent(row -> {
             row.setStatus(entity.getStatus());
-            row.setFileName(entity.getFileName());
-            row.setCvId(entity.getCvId());
+            row.setLabel(entity.getLabel());
+            row.setEntityType(entity.getEntityType());
+            row.setEntityId(entity.getEntityId());
             row.setErrorCode(entity.getErrorCode());
             row.setErrorMessage(entity.getErrorMessage());
             row.setUpdatedAt(Instant.now());
@@ -46,7 +47,7 @@ public class InMemoryCvImportRepository implements CvImportRepository {
         rows.removeIf(row -> row.getId().equals(id));
     }
 
-    private CvImportEntity copy(CvImportEntity entity) {
+    private JobEntity copy(JobEntity entity) {
         return entity.toBuilder().build();
     }
 }

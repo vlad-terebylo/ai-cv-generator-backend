@@ -25,7 +25,7 @@ final class CvImportApi {
         // a request that waits for the (blocked) AI call fails fast instead of hanging the test
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
-        this.client = RestClient.builder().baseUrl("http://localhost:" + port).requestFactory(requestFactory).build();
+        this.client = RestClient.builder().baseUrl(String.format("http://localhost:%d", port)).requestFactory(requestFactory).build();
     }
 
     ResponseEntity<JsonNode> upload(String fileName, byte[] content) {
@@ -42,16 +42,16 @@ final class CvImportApi {
     }
 
     ResponseEntity<JsonNode> importStatus(String jobId) {
-        return get("/api/v1/cv-imports/" + jobId);
+        return get(String.format("/api/v1/jobs/%s", jobId));
     }
 
-    ResponseEntity<JsonNode> cv(long id) {
-        return get("/api/v1/cvs/" + id);
+    ResponseEntity<JsonNode> cv(String id) {
+        return get(String.format("/api/v1/cvs/%s", id));
     }
 
     /** The id of the entity a COMPLETED job produced, read from its {@code entityId} reference. */
-    static long resultId(JsonNode job) {
-        return job.get("entityId").asLong();
+    static String resultId(JsonNode job) {
+        return job.get("entityId").asString();
     }
 
     /** Polls the job until it is COMPLETED or FAILED and returns that final state. */

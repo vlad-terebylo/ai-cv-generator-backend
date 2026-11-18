@@ -28,7 +28,7 @@ The upload request thread is blocked for the full duration of the Gemini call. S
 - **Dropped: "keep Gemini out of the transaction".** There are no transactions or database connections any more, so the earlier `CvService` analyze/save split is not needed. The worker simply calls the existing `CvService.process`.
 - **Dropped: database work.** No migration, JDBC repository, `jdbc` profile, Testcontainers or restart cleanup. After a restart all jobs and CVs are gone, and polling an old job id returns `404`.
 - No Gemini connect/read timeouts in the original scope (skipped by the user at the time); added later, see "Follow-up: Gemini resilience".
-- No retries, no job expiry/cleanup, no cancellation.
+- No retries in the original scope (added later, see "Follow-up: Gemini resilience"), no job expiry/cleanup, no cancellation.
 - No storage of the uploaded file beyond the in-memory handoff to the worker.
 - No change to `GET /api/v1/cvs/{id}`.
 
@@ -178,7 +178,7 @@ Fast local failures still fail synchronously: unsupported extension / empty file
 **Goal:** prove the request thread is no longer blocked and the whole flow works.
 
 **Tests** (`@SpringBootTest(webEnvironment = RANDOM_PORT)`, `@MockitoBean GeminiClient`, real HTTP via `RestClient`; Awaitility ships with `spring-boot-starter-test`)
-1. **Non-blocking:** the mocked `GeminiClient.extract` waits on a `CountDownLatch`. `POST` must return `202` while the latch is still closed; then release the latch, poll `GET /cv-imports/{id}` until `COMPLETED` (with a timeout), and fetch the CV with `GET /cvs/{cvId}`.
+1. **Non-blocking:** the mocked `GeminiClient` (`generateJson`, originally `extract`) waits on a `CountDownLatch`. `POST` must return `202` while the latch is still closed; then release the latch, poll `GET /cv-imports/{id}` until `COMPLETED` (with a timeout), and fetch the CV with `GET /cvs/{cvId}`.
 2. **Failure path:** the mock returns "not a CV" -> the job ends `FAILED` / `NOT_A_CV`, and no CV is stored.
 3. **Upsert path:** two uploads with the same email -> the second job is `COMPLETED` with the same `cvId`.
 4. **Queue full:** with a tiny executor (pool 1, queue 1 via test properties) and a blocked mock, a later `POST` returns `503` (its job is deleted, which `CvImportServiceTest` verifies because the response carries no job id) while the accepted jobs still complete.
@@ -218,7 +218,7 @@ Tests: `GeminiClientTest` runs the real client against a local HTTP server (pars
 
 ## 7. Risks
 
-- **~~No Gemini timeouts~~ (fixed in the follow-up above):** originally a stalled Gemini call kept its worker thread busy indefinitely. If all 4 threads stall, new jobs stay `PENDING`; after 20 queued jobs, `POST` returns `503`. The upload endpoint itself stays fast, but processing stops until restart. Adding connect/read timeouts later is a small change to the `GeminiClient` / `RestClient` setup.
+- **No Gemini timeouts (fixed in the follow-up above):** originally a stalled Gemini call kept its worker thread busy indefinitely. If all 4 threads stall, new jobs stay `PENDING`; after 20 queued jobs, `POST` returns `503`. The upload endpoint itself stays fast, but processing stops until restart. Adding connect/read timeouts later is a small change to the `GeminiClient` / `RestClient` setup.
 - **Breaking API change:** every caller of `POST /api/v1/cvs` must switch to polling.
 - **Lost data on restart:** jobs, CVs and queued uploads exist only in memory. After a restart `GET /api/v1/cv-imports/{id}` returns `404` for old ids.
 - **Unbounded memory growth:** finished jobs are never removed, and with in-memory storage they accumulate on the heap. Job expiry or a size cap is out of scope here but worth a follow-up.

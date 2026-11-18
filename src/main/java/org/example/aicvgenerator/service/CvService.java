@@ -1,20 +1,23 @@
 package org.example.aicvgenerator.service;
 
+import static org.example.aicvgenerator.config.Timing.NANOS_PER_MILLISECOND;
+
 import java.util.List;
 import java.util.Locale;
 
-import org.example.aicvgenerator.client.CvExtraction;
-import org.example.aicvgenerator.client.GeminiClient;
 import org.example.aicvgenerator.exception.CvNotFoundException;
 import org.example.aicvgenerator.exception.NotACvException;
 import org.example.aicvgenerator.mapper.CvEntityMapper;
 import org.example.aicvgenerator.mapper.CvExtractionMapper;
 import org.example.aicvgenerator.repository.CvRepository;
 import org.example.aicvgenerator.repository.ExperienceRepository;
+import org.example.aicvgenerator.repository.UpsertResult;
 import org.example.aicvgenerator.repository.entity.CvEntity;
 import org.example.aicvgenerator.service.model.Cv;
 import org.example.aicvgenerator.service.model.CvDocument;
+import org.example.aicvgenerator.service.model.CvExtraction;
 import org.example.aicvgenerator.service.model.CvSaveResult;
+import org.example.aicvgenerator.service.model.Experience;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,18 +30,17 @@ import lombok.extern.slf4j.Slf4j;
 public class CvService {
 
     private final DocumentTextExtractor textExtractor;
-    private final GeminiClient geminiClient;
+    private final CvAnalyzer cvAnalyzer;
     private final CvRepository cvRepository;
     private final ExperienceRepository experienceRepository;
     private final CvEntityMapper entityMapper;
     private final CvExtractionMapper extractionMapper;
 
-    /** Parses the document and stores it; an existing CV with the same email is replaced. */
     public CvSaveResult process(CvDocument document) {
         long start = System.nanoTime();
         String text = textExtractor.extract(document);
         long extracted = System.nanoTime();
-        CvExtraction extraction = geminiClient.extract(text);
+        CvExtraction extraction = cvAnalyzer.analyze(text);
         long analysed = System.nanoTime();
         if (!extraction.isCv()) {
             throw new NotACvException("The uploaded document is not a CV");
@@ -52,31 +54,26 @@ public class CvService {
         cv.setSourceFileName(document.fileName());
         CvSaveResult result = save(cv);
         long saved = System.nanoTime();
+        long extractionMs = (extracted - start) / NANOS_PER_MILLISECOND;
+        long geminiMs = (analysed - extracted) / NANOS_PER_MILLISECOND;
+        long savingMs = (saved - analysed) / NANOS_PER_MILLISECOND;
         log.info("Processed {}: text extraction {} ms, Gemini {} ms, saving {} ms", document.fileName(),
-                (extracted - start) / 1_000_000, (analysed - extracted) / 1_000_000, (saved - analysed) / 1_000_000);
+                extractionMs, geminiMs, savingMs);
         return result;
     }
 
+    /** @throws CvNotFoundException if no CV has this id */
     public Cv getById(long id) {
         CvEntity entity = cvRepository.findById(id).orElseThrow(() -> new CvNotFoundException(id));
         return entityMapper.toDomain(entity, experienceRepository.findByCvId(id));
     }
 
-    /** Synchronized because import workers run in parallel and the email lookup + insert must be atomic. */
-    private synchronized CvSaveResult save(Cv cv) {
-        var existing = cvRepository.findByEmail(cv.getEmail());
-        long id;
-        if (existing.isPresent()) {
-            id = existing.get().getId();
-            cv.setId(id);
-            cvRepository.update(entityMapper.toEntity(cv));
-            experienceRepository.deleteByCvId(id);
-        } else {
-            id = cvRepository.insert(entityMapper.toEntity(cv));
-            cv.setId(id);
-        }
-        experienceRepository.insertAll(entityMapper.toExperienceEntities(
-                cv.getExperience() == null ? List.of() : cv.getExperience(), id));
-        return new CvSaveResult(cv, existing.isEmpty());
+    /** Atomicity under parallel import workers is the repositories' job; see {@code upsertByEmail}. */
+    private CvSaveResult save(Cv cv) {
+        UpsertResult upserted = cvRepository.upsertByEmail(entityMapper.toEntity(cv));
+        cv.setId(upserted.id());
+        List<Experience> experience = cv.getExperience() == null ? List.of() : cv.getExperience();
+        experienceRepository.replaceByCvId(upserted.id(), entityMapper.toExperienceEntities(experience, upserted.id()));
+        return new CvSaveResult(cv, upserted.created());
     }
 }

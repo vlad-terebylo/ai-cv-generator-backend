@@ -9,7 +9,7 @@ import org.example.aicvgenerator.exception.DuplicateEmailException;
 import org.example.aicvgenerator.repository.entity.CvEntity;
 import org.springframework.stereotype.Repository;
 
-/** Keeps rows in an {@link ArrayList}; ids, unique email and timestamps are assigned here. */
+/** Assigns ids and timestamps and enforces unique email. Reads and writes copy rows, so callers never hold a stored row. */
 @Repository
 public class InMemoryCvRepository implements CvRepository {
 
@@ -49,6 +49,18 @@ public class InMemoryCvRepository implements CvRepository {
             row.setSourceFileName(entity.getSourceFileName());
             row.setUpdatedAt(Instant.now());
         });
+    }
+
+    @Override
+    public synchronized UpsertResult upsertByEmail(CvEntity entity) {
+        Optional<CvEntity> existing = findByEmail(entity.getEmail());
+        if (existing.isEmpty()) {
+            return new UpsertResult(insert(entity), true);
+        }
+        CvEntity replacement = copy(entity);
+        replacement.setId(existing.get().getId());
+        update(replacement);
+        return new UpsertResult(replacement.getId(), false);
     }
 
     private void requireEmailFree(String email, Long ownId) {

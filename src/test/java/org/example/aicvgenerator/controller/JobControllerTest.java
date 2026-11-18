@@ -7,12 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.UUID;
 
-import org.example.aicvgenerator.exception.CvImportNotFoundException;
+import org.example.aicvgenerator.exception.JobNotFoundException;
 import org.example.aicvgenerator.exception.GlobalExceptionHandler;
-import org.example.aicvgenerator.mapper.CvImportDtoMapperImpl;
-import org.example.aicvgenerator.service.CvImportService;
-import org.example.aicvgenerator.service.model.CvImport;
-import org.example.aicvgenerator.service.model.CvImportStatus;
+import org.example.aicvgenerator.mapper.JobDtoMapperImpl;
+import org.example.aicvgenerator.service.JobService;
+import org.example.aicvgenerator.service.model.Job;
+import org.example.aicvgenerator.service.model.JobStatus;
+import org.example.aicvgenerator.service.model.EntityType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -20,24 +21,24 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(CvImportController.class)
-@Import({CvImportDtoMapperImpl.class, GlobalExceptionHandler.class})
-class CvImportControllerTest {
+@WebMvcTest(JobController.class)
+@Import({JobDtoMapperImpl.class, GlobalExceptionHandler.class})
+class JobControllerTest {
 
     @Autowired MockMvc mockMvc;
-    @MockitoBean CvImportService cvImportService;
+    @MockitoBean JobService jobService;
 
     private final UUID id = UUID.randomUUID();
 
-    private CvImport.CvImportBuilder job(CvImportStatus status) {
-        return CvImport.builder().id(id).status(status).fileName("cv.pdf");
+    private Job.JobBuilder job(JobStatus status) {
+        return Job.builder().id(id).status(status).label("cv.pdf");
     }
 
     @Test
     void returnsPendingJob() throws Exception {
-        when(cvImportService.getById(id)).thenReturn(job(CvImportStatus.PENDING).build());
+        when(jobService.getById(id)).thenReturn(job(JobStatus.PENDING).build());
 
-        mockMvc.perform(get("/api/v1/cv-imports/{id}", id))
+        mockMvc.perform(get("/api/v1/jobs/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"))
@@ -47,13 +48,13 @@ class CvImportControllerTest {
 
     @Test
     void returnsCompletedJobWithTheCvAsItsResult() throws Exception {
-        when(cvImportService.getById(id)).thenReturn(job(CvImportStatus.COMPLETED).cvId(42L).build());
+        when(jobService.getById(id)).thenReturn(job(JobStatus.COMPLETED).entityType(EntityType.CV).entityId("42").build());
 
-        mockMvc.perform(get("/api/v1/cv-imports/{id}", id))
+        mockMvc.perform(get("/api/v1/jobs/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.entityType").value("CV"))
-                .andExpect(jsonPath("$.entityId").value(42))
+                .andExpect(jsonPath("$.entityId").value("42"))
                 .andExpect(jsonPath("$.cvId").doesNotExist())
                 .andExpect(jsonPath("$.fileName").doesNotExist())
                 .andExpect(jsonPath("$.name").doesNotExist())
@@ -62,10 +63,10 @@ class CvImportControllerTest {
 
     @Test
     void returnsFailedJobWithErrorDetails() throws Exception {
-        when(cvImportService.getById(id)).thenReturn(job(CvImportStatus.FAILED)
+        when(jobService.getById(id)).thenReturn(job(JobStatus.FAILED)
                 .errorCode("NOT_A_CV").errorMessage("The uploaded document is not a CV").build());
 
-        mockMvc.perform(get("/api/v1/cv-imports/{id}", id))
+        mockMvc.perform(get("/api/v1/jobs/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.errorCode").value("NOT_A_CV"))
@@ -75,13 +76,13 @@ class CvImportControllerTest {
 
     @Test
     void returns404ForUnknownJob() throws Exception {
-        when(cvImportService.getById(id)).thenThrow(new CvImportNotFoundException(id));
+        when(jobService.getById(id)).thenThrow(new JobNotFoundException(id));
 
-        mockMvc.perform(get("/api/v1/cv-imports/{id}", id)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/jobs/{id}", id)).andExpect(status().isNotFound());
     }
 
     @Test
     void returns400ForMalformedId() throws Exception {
-        mockMvc.perform(get("/api/v1/cv-imports/not-a-uuid")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/jobs/not-a-uuid")).andExpect(status().isBadRequest());
     }
 }

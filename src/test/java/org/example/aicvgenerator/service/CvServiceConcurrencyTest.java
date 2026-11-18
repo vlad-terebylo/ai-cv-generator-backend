@@ -11,14 +11,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.example.aicvgenerator.client.CvExtraction;
-import org.example.aicvgenerator.client.GeminiClient;
 import org.example.aicvgenerator.mapper.CvEntityMapper;
 import org.example.aicvgenerator.mapper.CvExtractionMapper;
 import org.example.aicvgenerator.repository.InMemoryCvRepository;
 import org.example.aicvgenerator.repository.InMemoryExperienceRepository;
 import org.example.aicvgenerator.repository.entity.CvEntity;
 import org.example.aicvgenerator.service.model.CvDocument;
+import org.example.aicvgenerator.service.model.CvExtraction;
 import org.example.aicvgenerator.service.model.CvSaveResult;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
@@ -26,7 +25,7 @@ import org.mapstruct.factory.Mappers;
 /** Workers import in parallel, so saving the same email twice at once must not fail. */
 class CvServiceConcurrencyTest {
 
-    /** Pauses after the email lookup to make the check-then-insert race window wide and reliable. */
+    /** Pauses after the email lookup: a non-atomic upsert would let both workers insert in that window. */
     private static class SlowLookupCvRepository extends InMemoryCvRepository {
         @Override
         public Optional<CvEntity> findByEmail(String email) {
@@ -43,13 +42,13 @@ class CvServiceConcurrencyTest {
     @Test
     void twoWorkersImportingTheSameEmailBothSucceed() throws Exception {
         DocumentTextExtractor extractor = mock(DocumentTextExtractor.class);
-        GeminiClient gemini = mock(GeminiClient.class);
+        CvAnalyzer analyzer = mock(CvAnalyzer.class);
         CvDocument document = new CvDocument("cv.pdf", new byte[] {1});
         when(extractor.extract(document)).thenReturn("cv text");
-        when(gemini.extract("cv text")).thenReturn(new CvExtraction(true, "Valieria", "Karlova",
+        when(analyzer.analyze("cv text")).thenReturn(new CvExtraction(true, "Valieria", "Karlova",
                 "v.karlova@gmail.com", "proactive",
                 List.of(new CvExtraction.ExtractedExperience(2025, null, "Senior Java Developer", "Absolute"))));
-        CvService service = new CvService(extractor, gemini, new SlowLookupCvRepository(),
+        CvService service = new CvService(extractor, analyzer, new SlowLookupCvRepository(),
                 new InMemoryExperienceRepository(), Mappers.getMapper(CvEntityMapper.class),
                 Mappers.getMapper(CvExtractionMapper.class));
 

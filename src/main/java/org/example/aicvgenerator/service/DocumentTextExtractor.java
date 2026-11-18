@@ -28,6 +28,12 @@ public class DocumentTextExtractor {
         }
     }
 
+    /**
+     * Returns the stripped text of a PDF or DOCX.
+     *
+     * @throws UnreadableDocumentException if the file is empty, corrupt or contains no text
+     * @throws UnsupportedDocumentException if the file name does not end in .pdf or .docx
+     */
     public String extract(CvDocument document) {
         requireSupported(document);
         String text = fileNameOf(document).endsWith(".pdf")

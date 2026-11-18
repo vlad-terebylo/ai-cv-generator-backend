@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-/** In-memory repositories, no database. */
 @SpringBootTest
 class AiCvGeneratorApplicationTests {
 

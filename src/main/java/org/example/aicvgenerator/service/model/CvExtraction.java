@@ -1,4 +1,4 @@
-package org.example.aicvgenerator.client;
+package org.example.aicvgenerator.service.model;
 
 import java.util.List;
 

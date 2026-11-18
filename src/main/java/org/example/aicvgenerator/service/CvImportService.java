@@ -1,62 +1,36 @@
 package org.example.aicvgenerator.service;
 
-import java.util.UUID;
-
-import org.example.aicvgenerator.exception.CvImportNotFoundException;
 import org.example.aicvgenerator.exception.ServerBusyException;
-import org.example.aicvgenerator.mapper.CvImportEntityMapper;
-import org.example.aicvgenerator.repository.CvImportRepository;
 import org.example.aicvgenerator.service.model.CvDocument;
-import org.example.aicvgenerator.service.model.CvImport;
-import org.example.aicvgenerator.service.model.CvImportStatus;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.TaskExecutor;
-import org.springframework.core.task.TaskRejectedException;
+import org.example.aicvgenerator.service.model.Job;
+import org.example.aicvgenerator.service.model.CvSaveResult;
+import org.example.aicvgenerator.service.model.EntityRef;
+import org.example.aicvgenerator.service.model.EntityType;
 import org.springframework.stereotype.Service;
 
-/** Accepts uploads quickly and hands the slow parsing to the background pool. */
+import lombok.RequiredArgsConstructor;
+
+/** Accepts uploads quickly and hands the slow parsing to the background {@link JobService}. */
 @Service
+@RequiredArgsConstructor
 public class CvImportService {
 
     private final DocumentTextExtractor textExtractor;
-    private final CvImportRepository cvImportRepository;
-    private final CvImportEntityMapper mapper;
-    private final CvImportProcessor processor;
-    private final TaskExecutor executor;
+    private final CvService cvService;
+    private final JobService jobService;
 
-    public CvImportService(DocumentTextExtractor textExtractor, CvImportRepository cvImportRepository,
-                           CvImportEntityMapper mapper, CvImportProcessor processor,
-                           @Qualifier("cvImportExecutor") TaskExecutor executor) {
-        this.textExtractor = textExtractor;
-        this.cvImportRepository = cvImportRepository;
-        this.mapper = mapper;
-        this.processor = processor;
-        this.executor = executor;
-    }
-
-    /** Creates a PENDING job and queues the document; throws {@link ServerBusyException} if the queue is full. */
-    public CvImport submit(CvDocument document) {
+    /**
+     * Rejects unsupported files at once, then creates a PENDING job that imports the CV in the background.
+     *
+     * @throws ServerBusyException if the queue is full
+     */
+    public Job submit(CvDocument document) {
         textExtractor.requireSupported(document);
-        UUID id = UUID.randomUUID();
-        cvImportRepository.insert(mapper.toEntity(CvImport.builder()
-                .id(id)
-                .status(CvImportStatus.PENDING)
-                .fileName(document.fileName())
-                .build()));
-        CvImport created = getById(id);
-        try {
-            executor.execute(() -> processor.run(id, document));
-        } catch (TaskRejectedException e) {
-            // never accepted, and the client gets no job id with the 503, so leave no unreachable record behind
-            cvImportRepository.delete(id);
-            throw new ServerBusyException();
-        }
-        return created;
+        return jobService.submit(document.fileName(), () -> importCv(document));
     }
 
-    public CvImport getById(UUID id) {
-        return cvImportRepository.findById(id)
-                .map(mapper::toDomain)
-                .orElseThrow(() -> new CvImportNotFoundException(id));
+    private EntityRef importCv(CvDocument document) {
+        CvSaveResult result = cvService.process(document);
+        return new EntityRef(EntityType.CV, String.valueOf(result.cv().getId()));
     }
 }

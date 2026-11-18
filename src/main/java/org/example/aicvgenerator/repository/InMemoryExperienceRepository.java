@@ -7,7 +7,6 @@ import java.util.List;
 import org.example.aicvgenerator.repository.entity.ExperienceEntity;
 import org.springframework.stereotype.Repository;
 
-/** Keeps rows in an {@link ArrayList}. */
 @Repository
 public class InMemoryExperienceRepository implements ExperienceRepository {
 
@@ -28,14 +27,10 @@ public class InMemoryExperienceRepository implements ExperienceRepository {
     }
 
     @Override
-    public synchronized void insertAll(List<ExperienceEntity> entities) {
-        for (ExperienceEntity entity : entities) {
-            rows.add(entity.toBuilder().id(nextId++).build());
-        }
-    }
-
-    @Override
-    public synchronized void deleteByCvId(long cvId) {
+    public synchronized void replaceByCvId(long cvId, List<ExperienceEntity> entities) {
         rows.removeIf(row -> row.getCvId() == cvId);
+        for (ExperienceEntity entity : entities) {
+            rows.add(entity.toBuilder().id(nextId++).cvId(cvId).build());
+        }
     }
 }

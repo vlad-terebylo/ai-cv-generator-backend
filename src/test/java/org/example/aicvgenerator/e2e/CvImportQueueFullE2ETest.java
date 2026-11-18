@@ -1,14 +1,13 @@
 package org.example.aicvgenerator.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
-import org.example.aicvgenerator.client.CvExtraction;
 import org.example.aicvgenerator.client.GeminiClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,10 +31,9 @@ class CvImportQueueFullE2ETest {
     @Test
     void thirdUploadGets503WhileTheFirstTwoStillComplete() throws Exception {
         CountDownLatch geminiMayFinish = new CountDownLatch(1);
-        when(gemini.extract(anyString())).thenAnswer(invocation -> {
+        when(gemini.generateJson(anyString(), anyMap())).thenAnswer(invocation -> {
             geminiMayFinish.await();
-            return new CvExtraction(true, "Valieria", "Karlova", UUID.randomUUID() + "@example.com", "summary",
-                    List.of());
+            return GeminiAnswers.cv(String.format("%s@example.com", UUID.randomUUID()), "summary", "Java Developer");
         });
         CvImportApi api = new CvImportApi(port);
 

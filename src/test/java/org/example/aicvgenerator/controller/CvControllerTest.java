@@ -18,12 +18,12 @@ import org.example.aicvgenerator.exception.ServerBusyException;
 import org.example.aicvgenerator.exception.UnreadableDocumentException;
 import org.example.aicvgenerator.exception.UnsupportedDocumentException;
 import org.example.aicvgenerator.mapper.CvDtoMapperImpl;
-import org.example.aicvgenerator.mapper.CvImportDtoMapperImpl;
+import org.example.aicvgenerator.mapper.JobDtoMapperImpl;
 import org.example.aicvgenerator.service.CvImportService;
 import org.example.aicvgenerator.service.CvService;
 import org.example.aicvgenerator.service.model.Cv;
-import org.example.aicvgenerator.service.model.CvImport;
-import org.example.aicvgenerator.service.model.CvImportStatus;
+import org.example.aicvgenerator.service.model.Job;
+import org.example.aicvgenerator.service.model.JobStatus;
 import org.example.aicvgenerator.service.model.Experience;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +34,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(CvController.class)
-@Import({CvDtoMapperImpl.class, CvImportDtoMapperImpl.class, GlobalExceptionHandler.class})
+@Import({CvDtoMapperImpl.class, JobDtoMapperImpl.class, GlobalExceptionHandler.class})
 class CvControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -53,12 +53,12 @@ class CvControllerTest {
     @Test
     void uploadReturns202WithLocationAndPendingJob() throws Exception {
         UUID id = UUID.randomUUID();
-        when(cvImportService.submit(any())).thenReturn(CvImport.builder().id(id).status(CvImportStatus.PENDING)
-                .fileName("cv.pdf").createdAt(Instant.parse("2026-11-05T10:00:00Z")).build());
+        when(cvImportService.submit(any())).thenReturn(Job.builder().id(id).status(JobStatus.PENDING)
+                .label("cv.pdf").createdAt(Instant.parse("2026-11-05T10:00:00Z")).build());
 
         mockMvc.perform(multipart("/api/v1/cvs").file(file))
                 .andExpect(status().isAccepted())
-                .andExpect(header().string("Location", "/api/v1/cv-imports/" + id))
+                .andExpect(header().string("Location", String.format("/api/v1/jobs/%s", id)))
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.entityType").doesNotExist())
@@ -101,7 +101,7 @@ class CvControllerTest {
 
         mockMvc.perform(get("/api/v1/cvs/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.id").value("1"))
                 .andExpect(jsonPath("$.firstName").value("Valieria"))
                 .andExpect(jsonPath("$.experience[0].company").value("Absolute"));
     }
@@ -111,5 +111,10 @@ class CvControllerTest {
         when(cvService.getById(5L)).thenThrow(new CvNotFoundException(5L));
 
         mockMvc.perform(get("/api/v1/cvs/5")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getReturns400WhenTheIdIsNotANumber() throws Exception {
+        mockMvc.perform(get("/api/v1/cvs/abc")).andExpect(status().isBadRequest());
     }
 }

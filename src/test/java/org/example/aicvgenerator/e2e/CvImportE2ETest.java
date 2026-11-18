@@ -1,16 +1,15 @@
 package org.example.aicvgenerator.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
-import org.example.aicvgenerator.client.CvExtraction;
 import org.example.aicvgenerator.client.GeminiClient;
 import org.example.aicvgenerator.exception.AiServiceException;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,22 +38,17 @@ class CvImportE2ETest {
         api = new CvImportApi(port);
     }
 
-    private static CvExtraction cv(String email, String summary, String position) {
-        return new CvExtraction(true, "Valieria", "Karlova", email, summary,
-                List.of(new CvExtraction.ExtractedExperience(2025, null, position, "Absolute")));
-    }
-
     private static String uniqueEmail() {
-        return UUID.randomUUID() + "@example.com";
+        return String.format("%s@example.com", UUID.randomUUID());
     }
 
     @Test
     void postReturnsImmediatelyWhileGeminiIsStillWorking() throws Exception {
         String email = uniqueEmail();
         CountDownLatch geminiMayFinish = new CountDownLatch(1);
-        when(gemini.extract(anyString())).thenAnswer(invocation -> {
+        when(gemini.generateJson(anyString(), anyMap())).thenAnswer(invocation -> {
             geminiMayFinish.await();
-            return cv(email, "proactive", "Senior Java Developer");
+            return GeminiAnswers.cv(email, "proactive", "Senior Java Developer");
         });
 
         try {
@@ -64,7 +58,7 @@ class CvImportE2ETest {
             assertThat(geminiMayFinish.getCount()).isEqualTo(1);
             assertThat(accepted.getStatusCode().value()).isEqualTo(202);
             String jobId = accepted.getBody().get("id").asString();
-            assertThat(accepted.getHeaders().getLocation()).hasToString("/api/v1/cv-imports/" + jobId);
+            assertThat(accepted.getHeaders().getLocation()).hasToString(String.format("/api/v1/jobs/%s", jobId));
             assertThat(accepted.getBody().get("status").asString()).isEqualTo("PENDING");
             assertThat(api.importStatus(jobId).getBody().get("status").asString()).isIn("PENDING", "PROCESSING");
 
@@ -87,7 +81,7 @@ class CvImportE2ETest {
     @Test
     void importsADocxToo() {
         String email = uniqueEmail();
-        when(gemini.extract(anyString())).thenReturn(cv(email, "docx summary", "Java Developer"));
+        when(gemini.generateJson(anyString(), anyMap())).thenReturn(GeminiAnswers.cv(email, "docx summary", "Java Developer"));
 
         ResponseEntity<JsonNode> accepted = api.upload("cv.docx", CvFixtures.docx("Valieria Karlova, Java developer"));
         JsonNode finished = api.awaitFinished(accepted.getBody().get("id").asString());
@@ -98,7 +92,7 @@ class CvImportE2ETest {
 
     @Test
     void jobFailsWhenTheDocumentIsNotACv() {
-        when(gemini.extract(anyString())).thenReturn(new CvExtraction(false, null, null, null, null, null));
+        when(gemini.generateJson(anyString(), anyMap())).thenReturn(GeminiAnswers.notACv());
 
         ResponseEntity<JsonNode> accepted = api.upload("invoice.pdf", CvFixtures.pdf("Invoice 42, total 100 EUR"));
         JsonNode finished = api.awaitFinished(accepted.getBody().get("id").asString());
@@ -116,12 +110,12 @@ class CvImportE2ETest {
 
         assertThat(finished.get("status").asString()).isEqualTo("FAILED");
         assertThat(finished.get("errorCode").asString()).isEqualTo("UNREADABLE_DOCUMENT");
-        verify(gemini, never()).extract(anyString());
+        verify(gemini, never()).generateJson(anyString(), anyMap());
     }
 
     @Test
     void jobFailsWithAGenericMessageWhenTheAiServiceFails() {
-        when(gemini.extract(anyString())).thenThrow(new AiServiceException("Gemini request failed: 401 secret detail"));
+        when(gemini.generateJson(anyString(), anyMap())).thenThrow(new AiServiceException("Gemini request failed: 401 secret detail"));
 
         ResponseEntity<JsonNode> accepted = api.upload("cv.pdf", CvFixtures.pdf("Valieria Karlova"));
         JsonNode finished = api.awaitFinished(accepted.getBody().get("id").asString());
@@ -134,9 +128,9 @@ class CvImportE2ETest {
     @Test
     void secondImportWithTheSameEmailUpdatesTheExistingCv() {
         String email = uniqueEmail();
-        when(gemini.extract(anyString()))
-                .thenReturn(cv(email, "first summary", "Java Developer"))
-                .thenReturn(cv(email, "second summary", "Senior Java Developer"));
+        when(gemini.generateJson(anyString(), anyMap()))
+                .thenReturn(GeminiAnswers.cv(email, "first summary", "Java Developer"))
+                .thenReturn(GeminiAnswers.cv(email, "second summary", "Senior Java Developer"));
 
         JsonNode first = api.awaitFinished(api.upload("cv.pdf", CvFixtures.pdf("first")).getBody().get("id").asString());
         JsonNode second = api.awaitFinished(api.upload("cv.pdf", CvFixtures.pdf("second")).getBody().get("id").asString());
@@ -155,7 +149,7 @@ class CvImportE2ETest {
         ResponseEntity<JsonNode> response = api.upload("cv.txt", new byte[] {1});
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        verify(gemini, never()).extract(anyString());
+        verify(gemini, never()).generateJson(anyString(), anyMap());
     }
 
     @Test

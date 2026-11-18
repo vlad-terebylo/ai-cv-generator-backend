@@ -1,6 +1,6 @@
 package org.example.aicvgenerator.service.model;
 
-public enum CvImportStatus {
+public enum JobStatus {
     PENDING,
     PROCESSING,
     COMPLETED,
